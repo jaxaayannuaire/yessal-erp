@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+/vendor/
+/node_modules/
+/storage/*.key
+/apps/api/vendor/
+/apps/mobile/.dart_tool/
+/apps/mobile/build/
+/apps/mobile/.idea/
+.dart_tool/
+build/
+.idea/
+.vscode/
+*.log
