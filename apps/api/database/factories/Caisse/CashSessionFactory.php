@@ -5,6 +5,7 @@ namespace Database\Factories\Caisse;
 use App\Models\Caisse\CashSession;
 use App\Models\Caisse\Shop;
 use App\Models\Caisse\Terminal;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class CashSessionFactory extends Factory
@@ -21,7 +22,7 @@ class CashSessionFactory extends Factory
             'shop_id' => $shop->id,
             'terminal_id' => $terminal->id,
             'device_id' => null,
-            'opened_by' => null,
+            'opened_by' => User::factory(),
             'closed_by' => null,
             'opening_amount' => fake()->numberBetween(0, 100000),
             'expected_amount' => null,

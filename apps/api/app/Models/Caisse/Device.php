@@ -5,10 +5,13 @@ namespace App\Models\Caisse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Device extends Model
 {
-    protected $fillable = [
+    use HasFactory;
+	
+	protected $fillable = [
         'organization_id','shop_id','terminal_id','device_uuid','name','platform',
         'app_version','status','last_seen_at','last_sync_at','paired_at','revoked_at'
     ];

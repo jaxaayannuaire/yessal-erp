@@ -66,16 +66,22 @@ class SaleService
 
                     if (!$product) {
                         throw ValidationException::withMessages([
-                            'lines' => ['Produit introuvable ou inaccessible pour cette boutique.'],
+                            'lines' => [
+                                'Produit introuvable ou inaccessible pour cette boutique.',
+                            ],
                         ]);
                     }
                 }
 
-                // Les snapshots sont calculés explicitement à partir du produit
-                // lorsqu'aucune valeur n'est fournie par le client.
-                $productName = $line['product_name_snapshot'] ?? $product?->name ?? 'Produit';
-                $productSku = $line['sku_snapshot'] ?? $product?->sku;
-                $productBarcode = $line['barcode_snapshot'] ?? $product?->barcode;
+                $productName = $line['product_name_snapshot']
+                    ?? $product?->name
+                    ?? 'Produit';
+
+                $productSku = $line['sku_snapshot']
+                    ?? $product?->sku;
+
+                $productBarcode = $line['barcode_snapshot']
+                    ?? $product?->barcode;
 
                 $sale->lines()->create([
                     'product_id' => $product?->id ?? $line['product_id'] ?? null,
@@ -101,5 +107,52 @@ class SaleService
 
             return $sale->load('lines');
         });
+    }
+
+    /**
+     * Finalise une vente entièrement payée.
+     */
+    public function finalize(Sale $sale): Sale
+    {
+        return DB::transaction(function () use ($sale) {
+            $sale = Sale::query()
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
+
+            if ($sale->finalized_at !== null || $sale->status === 'finalized') {
+                throw ValidationException::withMessages([
+                    'sale' => ['Cette vente est déjà finalisée.'],
+                ]);
+            }
+
+            if ($sale->status !== 'paid' || (int) $sale->due_amount !== 0) {
+                throw ValidationException::withMessages([
+                    'sale' => [
+                        'Seule une vente entièrement payée peut être finalisée.',
+                    ],
+                ]);
+            }
+
+            $sale->update([
+                'status' => 'finalized',
+                'finalized_at' => now(),
+            ]);
+
+            return $sale->refresh();
+        });
+    }
+
+    /**
+     * Vérifie qu'une vente peut encore être modifiée.
+     */
+    public function ensureEditable(Sale $sale): void
+    {
+        if ($sale->finalized_at !== null || $sale->status === 'finalized') {
+            throw ValidationException::withMessages([
+                'sale' => [
+                    'Une vente finalisée ne peut plus être modifiée.',
+                ],
+            ]);
+        }
     }
 }

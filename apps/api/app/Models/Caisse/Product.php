@@ -5,10 +5,13 @@ namespace App\Models\Caisse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Product extends Model
 {
-    protected $fillable = [
+    use HasFactory;
+	
+	protected $fillable = [
         'shop_id','category_id','name','sku','barcode','unit',
         'purchase_price','sale_price','tax_rate','status'
     ];

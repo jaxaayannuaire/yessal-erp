@@ -13,7 +13,7 @@ class ShopFactory extends Factory
     public function definition(): array
     {
         return [
-            'organization_id' => Organization::query()->value('id') ?? 1,
+            'organization_id' => Organization::factory(),
             'name' => fake()->company(),
             'code' => strtoupper(fake()->unique()->bothify('SHOP-###')),
             'address' => fake()->address(),

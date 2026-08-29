@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Terminal extends Model
 {
-    protected $fillable = ['shop_id', 'register_profile_id', 'name', 'code', 'status'];
+    use HasFactory;
+	
+	protected $fillable = ['shop_id', 'register_profile_id', 'name', 'code', 'status'];
 
     public function shop(): BelongsTo { return $this->belongsTo(Shop::class); }
     public function registerProfile(): BelongsTo { return $this->belongsTo(RegisterProfile::class); }

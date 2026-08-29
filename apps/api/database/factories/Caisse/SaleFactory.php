@@ -6,6 +6,7 @@ use App\Models\Caisse\CashSession;
 use App\Models\Caisse\Sale;
 use App\Models\Caisse\Shop;
 use App\Models\Caisse\Terminal;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -29,7 +30,7 @@ class SaleFactory extends Factory
             'terminal_id' => $terminal->id,
             'cash_session_id' => $session->id,
             'device_id' => null,
-            'cashier_user_id' => null,
+            'cashier_user_id' => User::factory(),
             'seller_user_id' => null,
             'customer_id' => null,
             'local_uuid' => Str::uuid(),

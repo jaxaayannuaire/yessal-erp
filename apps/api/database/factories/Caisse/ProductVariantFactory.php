@@ -19,8 +19,7 @@ class ProductVariantFactory extends Factory
             'barcode' => fake()->unique()->numerify('300000000001'),
             'attributes' => ['option' => fake()->word()],
             'purchase_price' => fake()->numberBetween(100, 5000),
-            'sale_price' => fake()->numberBetween(500, 15000),
-            'status' => 'active',
+            'sale_price' => fake()->numberBetween(500, 15000),            
         ];
     }
 }

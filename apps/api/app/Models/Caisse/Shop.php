@@ -5,10 +5,13 @@ namespace App\Models\Caisse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Shop extends Model
 {
-    protected $fillable = ['organization_id', 'name', 'code', 'address', 'phone', 'status'];
+    use HasFactory;
+	
+	protected $fillable = ['organization_id', 'name', 'code', 'address', 'phone', 'status'];
 
     public function organization(): BelongsTo { return $this->belongsTo(\App\Models\Organization::class); }
     public function registerProfiles(): HasMany { return $this->hasMany(RegisterProfile::class); }

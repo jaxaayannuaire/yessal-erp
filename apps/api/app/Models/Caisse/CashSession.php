@@ -5,10 +5,13 @@ namespace App\Models\Caisse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class CashSession extends Model
 {
-    protected $fillable = [
+    use HasFactory;
+	
+	protected $fillable = [
         'organization_id','shop_id','terminal_id','device_id','opened_by','closed_by',
         'opening_amount','expected_amount','counted_amount','variance_amount',
         'variance_reason','status','opened_at','closed_at'

@@ -5,10 +5,13 @@ namespace App\Models\Caisse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Sale extends Model
 {
-    protected $fillable = [
+    use HasFactory;
+	
+	protected $fillable = [
         'organization_id','shop_id','terminal_id','cash_session_id','device_id',
         'cashier_user_id','seller_user_id','customer_id','local_uuid','receipt_number',
         'status','subtotal','discount_amount','tax_amount','total_amount','paid_amount',
