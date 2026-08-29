@@ -34,5 +34,18 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+	
+	'wave' => [
+		'api_url' => env('WAVE_API_URL', 'https://api.wave.com/v1'),
+		'api_key' => env('WAVE_API_KEY'),
+		'success_url' => env('WAVE_SUCCESS_URL'),
+		'error_url' => env('WAVE_ERROR_URL'),
+		'webhook_secret' => env('WAVE_WEBHOOK_SECRET'),
+	],
+	
+	'wave_balance' => [
+		'api_key' => env('WAVE_BALANCE_API_KEY'),
+		'signing_secret' => env('WAVE_BALANCE_SIGNING_SECRET'),
+	],
 
 ];
