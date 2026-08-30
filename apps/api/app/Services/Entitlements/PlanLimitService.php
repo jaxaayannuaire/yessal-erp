@@ -22,6 +22,7 @@ class PlanLimitService
         return match ($resource) {
             'users' => $subscription->plan->max_users,
             'products' => $subscription->plan->max_products,
+			'devices' => $subscription->plan->max_devices,
             default => null,
         };
     }

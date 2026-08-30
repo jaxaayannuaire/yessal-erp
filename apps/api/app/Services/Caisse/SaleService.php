@@ -73,15 +73,15 @@ class SaleService
                     }
                 }
 
-                $productName = $line['product_name_snapshot']
-                    ?? $product?->name
-                    ?? 'Produit';
+                $productName = $product?->name
+					?? $line['product_name_snapshot']
+					?? 'Produit';
 
-                $productSku = $line['sku_snapshot']
-                    ?? $product?->sku;
+				$productSku = $product?->sku
+					?? $line['sku_snapshot'];
 
-                $productBarcode = $line['barcode_snapshot']
-                    ?? $product?->barcode;
+				$productBarcode = $product?->barcode
+					?? $line['barcode_snapshot'];
 
                 $sale->lines()->create([
                     'product_id' => $product?->id ?? $line['product_id'] ?? null,

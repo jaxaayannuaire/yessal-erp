@@ -12,8 +12,11 @@ class StockLocationFactory extends Factory
 
     public function definition(): array
     {
+        $shop = Shop::factory()->create();
+
         return [
-            'shop_id' => Shop::factory(),
+            'organization_id' => $shop->organization_id,
+            'shop_id' => $shop->id,
             'name' => 'Stock ' . fake()->unique()->numberBetween(1, 9999),
             'type' => 'store',
             'status' => 'active',

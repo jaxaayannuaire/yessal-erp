@@ -23,6 +23,9 @@ class Plan extends Model
         'max_products',
         'is_active',
         'sort_order',
+		'max_users',
+		'max_products',
+		'max_devices',
     ];
 
     protected function casts(): array

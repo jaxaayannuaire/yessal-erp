@@ -95,8 +95,7 @@ class PaymentService
                 'type' => 'sale',
                 'amount' => $amount,
                 'reason' => 'Paiement vente ' . ($sale->receipt_number ?? $sale->id),
-                'reference_type' => SalePayment::class,
-                'reference_id' => $payment->id,
+				'reference' => 'sale_payment:' . $payment->id,
                 'created_by' => $sale->cashier_user_id,
             ]);
 

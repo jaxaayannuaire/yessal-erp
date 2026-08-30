@@ -1,46 +1,180 @@
 <?php
+
 namespace App\Services\Caisse;
 
+use App\Models\Caisse\Device;
+use App\Models\Caisse\Shop;
 use App\Models\Caisse\SyncEvent;
+use App\Models\Caisse\DeviceActivityLog;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class SyncService
 {
-    public function push(int $organizationId, int $deviceId, array $events): array
-    {
+    public function push(
+        int $organizationId,
+        int $deviceId,
+        array $events,
+        array $activity = []
+    ): array {
+        $device = Device::query()
+            ->whereKey($deviceId)
+            ->where('organization_id', $organizationId)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $device) {
+            throw ValidationException::withMessages([
+                'device_id' => [
+                    'Appareil inexistant, inactif ou inaccessible.',
+                ],
+            ]);
+        }
+
+        $now = now();
+
+        $device->update([
+            'last_seen_at' => $now,
+        ]);
+
+        $this->logActivity(
+            $organizationId,
+            $device,
+            'connected',
+            $activity
+        );
+
         $accepted = [];
         $rejected = [];
         $conflicts = [];
 
         foreach ($events as $event) {
-            $result = DB::transaction(function () use ($organizationId, $deviceId, $event) {
-                $existing = SyncEvent::where('organization_id', $organizationId)
-                    ->where('event_uuid', $event['event_uuid'])
-                    ->first();
+            try {
+                $result = DB::transaction(function () use (
+                    $organizationId,
+                    $device,
+                    $event
+                ) {
+                    $shopId = $event['shop_id'] ?? null;
 
-                if ($existing) {
-                    return ['type' => 'accepted', 'id' => $existing->id, 'duplicate' => true];
-                }
+                    if ($shopId !== null) {
+                        $shop = Shop::query()
+                            ->whereKey($shopId)
+                            ->where('organization_id', $organizationId)
+                            ->first();
 
-                $created = SyncEvent::create([
-                    'organization_id' => $organizationId,
-                    'shop_id' => $event['shop_id'] ?? null,
-                    'device_id' => $deviceId,
-                    'event_uuid' => $event['event_uuid'],
-                    'entity_type' => $event['entity_type'],
-                    'entity_id' => $event['entity_id'],
-                    'action' => $event['action'],
-                    'payload' => $event['payload'],
-                    'status' => 'pending',
-                    'created_at' => $event['occurred_at'] ?? now(),
-                ]);
+                        if (! $shop) {
+                            throw ValidationException::withMessages([
+                                'shop_id' => [
+                                    'Boutique inexistante ou inaccessible.',
+                                ],
+                            ]);
+                        }
 
-                return ['type' => 'accepted', 'id' => $created->id, 'duplicate' => false];
-            });
+                        if (
+                            $device->shop_id !== null &&
+                            (int) $device->shop_id !== (int) $shopId
+                        ) {
+                            throw ValidationException::withMessages([
+                                'shop_id' => [
+                                    'La boutique ne correspond pas à l’appareil.',
+                                ],
+                            ]);
+                        }
+                    }
 
-            $accepted[] = $result;
+                    $existing = SyncEvent::query()
+                        ->where('organization_id', $organizationId)
+                        ->where('event_uuid', $event['event_uuid'])
+                        ->first();
+
+                    if ($existing) {
+                        return [
+                            'type' => 'accepted',
+                            'id' => $existing->id,
+                            'duplicate' => true,
+                        ];
+                    }
+
+                    $created = SyncEvent::create([
+                        'organization_id' => $organizationId,
+                        'shop_id' => $shopId,
+                        'device_id' => $device->id,
+                        'event_uuid' => $event['event_uuid'],
+                        'entity_type' => $event['entity_type'],
+                        'entity_id' => $event['entity_id'],
+                        'action' => $event['action'],
+                        'payload' => $event['payload'],
+                        'status' => 'pending',
+                        'created_at' => $event['occurred_at'] ?? now(),
+                    ]);
+
+                    return [
+                        'type' => 'accepted',
+                        'id' => $created->id,
+                        'duplicate' => false,
+                    ];
+                });
+
+                $accepted[] = $result;
+            } catch (ValidationException $e) {
+                $rejected[] = [
+                    'event_uuid' => $event['event_uuid'] ?? null,
+                    'errors' => $e->errors(),
+                ];
+            }
         }
 
-        return compact('accepted', 'rejected', 'conflicts');
+        $device->update([
+            'last_seen_at' => $now,
+            'last_sync_at' => $now,
+        ]);
+
+        $this->logActivity(
+            $organizationId,
+            $device,
+            'sync_push',
+            array_merge($activity, [
+                'events_count' => count($events),
+                'accepted_count' => count($accepted),
+                'rejected_count' => count($rejected),
+            ])
+        );
+
+        foreach ($rejected as $item) {
+            $this->logActivity(
+                $organizationId,
+                $device,
+                'sync_rejected',
+                [
+                    'event_uuid' => $item['event_uuid'],
+                    'errors' => $item['errors'],
+                ] + $activity
+            );
+        }
+
+        return compact(
+            'accepted',
+            'rejected',
+            'conflicts'
+        );
+    }
+
+    private function logActivity(
+        int $organizationId,
+        Device $device,
+        string $eventType,
+        array $activity = []
+    ): void {
+        DeviceActivityLog::create([
+            'organization_id' => $organizationId,
+            'device_id' => $device->id,
+            'event_type' => $eventType,
+            'ip_address' => $activity['ip_address'] ?? null,
+            'user_agent' => $activity['user_agent'] ?? null,
+            'app_version' => $activity['app_version'] ?? $device->app_version,
+            'metadata' => $activity['metadata'] ?? null,
+            'created_at' => now(),
+        ]);
     }
 }

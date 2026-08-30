@@ -68,9 +68,14 @@ class ResolveOrganizationContext
         }
 
         $request->attributes->set(
-            'currentOrganization',
-            $organization
-        );
+			'currentOrganization',
+			$organization
+		);
+
+		$request->attributes->set(
+			'organization_id',
+			$organization->id
+		);
 
         $request->attributes->set(
             'currentSubscription',

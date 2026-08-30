@@ -2,6 +2,7 @@
 
 namespace App\Services\Entitlements;
 
+use App\Models\Caisse\Device;
 use App\Models\Organization;
 
 class QuotaService
@@ -20,6 +21,14 @@ class QuotaService
     ): int {
         return match ($resource) {
             'users' => $organization->users()->count(),
+
+            'products' => 0,
+
+            'devices' => Device::query()
+                ->where('organization_id', $organization->id)
+                ->where('status', 'active')
+                ->count(),
+
             default => 0,
         };
     }
@@ -48,8 +57,15 @@ class QuotaService
         string $resource,
         int $quantity = 1
     ): array {
-        $limit = $this->getLimit($organization, $resource);
-        $usage = $this->getUsage($organization, $resource);
+        $limit = $this->getLimit(
+            $organization,
+            $resource
+        );
+
+        $usage = $this->getUsage(
+            $organization,
+            $resource
+        );
 
         return [
             'resource' => $resource,

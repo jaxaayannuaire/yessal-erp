@@ -9,14 +9,33 @@ return new class extends Migration {
     {
         Schema::create('stock_locations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('shop_id')->constrained('shops')->cascadeOnUpdate()->cascadeOnDelete();
+
+            $table->foreignId('organization_id')
+                ->constrained('organizations')
+                ->cascadeOnUpdate()
+                ->restrictOnDelete();
+
+            $table->foreignId('shop_id')
+                ->constrained('shops')
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
+
             $table->string('name', 150);
             $table->string('type', 30)->default('store');
             $table->string('status', 30)->default('active');
+
             $table->timestamps();
-            $table->index(['shop_id', 'status']);
+
+            $table->index([
+                'organization_id',
+                'shop_id',
+                'status',
+            ]);
         });
     }
 
-    public function down(): void { Schema::dropIfExists('stock_locations'); }
+    public function down(): void
+    {
+        Schema::dropIfExists('stock_locations');
+    }
 };

@@ -29,4 +29,5 @@ class Device extends Model
     public function terminal(): BelongsTo { return $this->belongsTo(Terminal::class); }
     public function syncEvents(): HasMany { return $this->hasMany(SyncEvent::class); }
     public function syncConflicts(): HasMany { return $this->hasMany(SyncConflict::class); }
+	public function activityLogs(): HasMany { return $this->hasMany(DeviceActivityLog::class); }
 }
