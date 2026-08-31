@@ -9,12 +9,16 @@ use RuntimeException;
 class WaveBalanceService
 {
     private string $baseUrl;
-    private string $apiKey;
+	private ?string $apiKey;
     private ?string $signingSecret;
 
     public function __construct()
     {
-        $this->baseUrl = 'https://api.wave.com';
+        $this->baseUrl = rtrim(
+            config('services.wave.api_url', 'https://api.wave.com/v1'),
+            '/'
+        );
+
         $this->apiKey = config('services.wave_balance.api_key');
         $this->signingSecret = config(
             'services.wave_balance.signing_secret'
@@ -22,6 +26,39 @@ class WaveBalanceService
     }
 
     public function getBalance(bool $includeSubaccounts = false): array
+    {
+        $query = [];
+
+        if ($includeSubaccounts) {
+            $query['include_subaccounts'] = 'true';
+        }
+
+        return $this->get('/balance', $query);
+    }
+
+    public function getTransactions(
+        ?string $date = null,
+        ?string $after = null,
+        bool $includeSubaccounts = false
+    ): array {
+        $query = [];
+
+        if ($date !== null) {
+            $query['date'] = $date;
+        }
+
+        if ($after !== null) {
+            $query['after'] = $after;
+        }
+
+        if ($includeSubaccounts) {
+            $query['include_subaccounts'] = 'true';
+        }
+
+        return $this->get('/transactions', $query);
+    }
+
+    private function get(string $path, array $query = []): array
     {
         if (empty($this->apiKey)) {
             throw new RuntimeException(
@@ -47,34 +84,31 @@ class WaveBalanceService
                 "t={$timestamp},v1={$signature}";
         }
 
-        $query = [];
+        try {
+            $response = Http::withHeaders($headers)
+                ->timeout(30)
+                ->get($this->baseUrl . $path, $query);
 
-        if ($includeSubaccounts) {
-            $query['include_subaccounts'] = 'true';
-        }
+            if ($response->failed()) {
+                Log::error('Wave Balance API error', [
+                    'path' => $path,
+                    'status' => $response->status(),
+                    'body' => $response->json(),
+                ]);
 
-        $response = Http::withHeaders($headers)
-            ->timeout(30)
-            ->get(
-                $this->baseUrl . '/v1/balance',
-                $query
-            );
+                throw new RuntimeException(
+                    'Impossible d’exécuter la requête Wave Balance.'
+                );
+            }
 
-        if ($response->failed()) {
-            Log::error('Wave Balance API error', [
-                'status' => $response->status(),
-                'body' => $response->json(),
+            return $response->json();
+        } catch (\Throwable $exception) {
+            Log::error('Wave Balance API exception', [
+                'path' => $path,
+                'message' => $exception->getMessage(),
             ]);
 
-            throw new RuntimeException(
-                'Impossible de récupérer le solde Wave.'
-            );
+            throw $exception;
         }
-
-        Log::info('Wave balance retrieved', [
-            'balance' => $response->json(),
-        ]);
-
-        return $response->json();
     }
 }
