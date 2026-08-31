@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Caisse;
 
-use App\Models\Payment;
 use App\Models\Subscription;
 use App\Services\Payments\PaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,7 +50,7 @@ class WavePaymentApiTest extends TestCase
         );
     }
 
-    public function test_wave_checkout_can_be_initiated(): void
+    public function test_le_checkout_wave_peut_etre_initie(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -84,7 +83,6 @@ class WavePaymentApiTest extends TestCase
             'cos-test-001',
             $payment->provider_transaction_id
         );
-
         $this->assertSame(
             $payment->reference,
             $payment->metadata['wave_session']['client_reference']
@@ -99,7 +97,7 @@ class WavePaymentApiTest extends TestCase
         });
     }
 
-    public function test_wave_checkout_provider_error_is_handled(): void
+    public function test_une_erreur_du_fournisseur_wave_est_correctement_geree(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -118,7 +116,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertSame('pending', $payment->fresh()->status);
     }
 
-    public function test_signed_completed_webhook_confirms_payment(): void
+    public function test_le_webhook_wave_signe_confirme_le_paiement(): void
     {
         [$subscription, $payment] = $this->createPayment();
 
@@ -150,7 +148,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertSame('active', $subscription->status);
     }
 
-    public function test_signed_failed_webhook_marks_payment_failed(): void
+    public function test_le_webhook_wave_signe_marque_le_paiement_comme_echoue(): void
     {
         [$subscription, $payment] = $this->createPayment();
 
@@ -182,7 +180,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertNull($payment->paid_at);
     }
 
-    public function test_signed_cancelled_webhook_marks_payment_cancelled(): void
+    public function test_le_webhook_wave_signe_annule_le_paiement(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -208,7 +206,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertSame('cancelled', $payment->fresh()->status);
     }
 
-    public function test_signed_expired_webhook_marks_payment_expired(): void
+    public function test_le_webhook_wave_signe_expire_le_paiement(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -234,7 +232,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertSame('expired', $payment->fresh()->status);
     }
 
-    public function test_invalid_wave_signature_is_rejected(): void
+    public function test_une_signature_wave_invalide_est_rejetee(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -260,7 +258,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertSame('pending', $payment->fresh()->status);
     }
 
-    public function test_real_wave_event_without_signature_is_rejected(): void
+    public function test_un_evenement_wave_sans_signature_est_rejete(): void
     {
         $response = $this->postJson(
             '/api/v1/payments/wave/webhook',
@@ -275,7 +273,7 @@ class WavePaymentApiTest extends TestCase
         $response->assertUnauthorized();
     }
 
-    public function test_healthcheck_without_signature_is_accepted(): void
+    public function test_le_healthcheck_wave_sans_signature_est_accepte(): void
     {
         $response = $this->postJson(
             '/api/v1/payments/wave/webhook',
@@ -292,7 +290,7 @@ class WavePaymentApiTest extends TestCase
             ]);
     }
 
-    public function test_unknown_event_is_ignored(): void
+    public function test_un_evenement_wave_inconnu_est_ignore(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -317,7 +315,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertSame('pending', $payment->fresh()->status);
     }
 
-    public function test_unknown_wave_payment_is_not_processed(): void
+    public function test_un_paiement_wave_inexistant_n_est_pas_traite(): void
     {
         $response = $this->signedWebhook([
             'type' => 'checkout.session.completed',
@@ -334,7 +332,7 @@ class WavePaymentApiTest extends TestCase
             ]);
     }
 
-    public function test_completed_webhook_is_safe_when_payment_is_already_paid(): void
+    public function test_un_webhook_completed_est_sans_effet_sur_un_paiement_deja_paye(): void
     {
         [$subscription, $payment] = $this->createPayment();
 
@@ -372,7 +370,7 @@ class WavePaymentApiTest extends TestCase
         );
     }
 
-    public function test_failed_webhook_can_be_repeated_without_changing_final_state(): void
+    public function test_un_webhook_failed_repete_conserve_le_meme_etat_final(): void
     {
         [$subscription, $payment] = $this->createPayment();
 
@@ -387,17 +385,12 @@ class WavePaymentApiTest extends TestCase
             ],
         ];
 
-        $firstResponse = $this->signedWebhook($payload);
-
-        $firstResponse->assertOk();
+        $this->signedWebhook($payload)->assertOk();
 
         $payment->refresh();
-
         $firstMetadata = $payment->metadata;
 
-        $secondResponse = $this->signedWebhook($payload);
-
-        $secondResponse->assertOk();
+        $this->signedWebhook($payload)->assertOk();
 
         $payment->refresh();
         $subscription->refresh();
@@ -407,7 +400,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertEquals($firstMetadata, $payment->metadata);
     }
 
-    public function test_renewal_completed_webhook_reactivates_and_extends_subscription(): void
+    public function test_un_webhook_completed_de_renouvellement_reactive_et_prolonge_l_abonnement(): void
     {
         [$subscription, $payment] = $this->createPayment('renewal');
 
@@ -443,7 +436,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertTrue($subscription->ends_at->isFuture());
     }
 
-    public function test_payment_service_returns_already_paid_for_paid_payment(): void
+    public function test_un_paiement_deja_paye_n_est_pas_reinitie(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -459,7 +452,7 @@ class WavePaymentApiTest extends TestCase
         $this->assertSame($payment->id, $result['payment_id']);
     }
 
-    public function test_wave_verify_is_explicitly_not_implemented(): void
+    public function test_la_verification_wave_sans_identifiant_de_transaction_echoue(): void
     {
         [, $payment] = $this->createPayment();
 
@@ -468,6 +461,177 @@ class WavePaymentApiTest extends TestCase
             ->verify($payment);
 
         $this->assertFalse($result['success']);
-        $this->assertSame('not_implemented', $result['status']);
+        $this->assertSame('missing_transaction_id', $result['status']);
+        $this->assertSame($payment->id, $result['payment_id']);
+    }
+
+    public function test_la_verification_wave_retourne_le_statut_paid(): void
+    {
+        [, $payment] = $this->createPayment();
+
+        $payment->update([
+            'provider_transaction_id' => 'cos-test-verify-paid',
+        ]);
+
+        Http::fake([
+            'https://api.wave.com/v1/checkout/sessions*' => Http::response([
+                'id' => 'cos-test-verify-paid',
+                'payment_status' => 'succeeded',
+                'checkout_status' => 'complete',
+                'client_reference' => $payment->reference,
+                'currency' => 'XOF',
+                'amount' => '5000.00',
+            ], 200),
+        ]);
+
+        $result = app(PaymentService::class)
+            ->getProvider('wave')
+            ->verify($payment);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('paid', $result['status']);
+        $this->assertSame('succeeded', $result['payment_status']);
+        $this->assertSame('complete', $result['checkout_status']);
+        $this->assertSame(
+            'cos-test-verify-paid',
+            $result['provider_transaction_id']
+        );
+    }
+
+    public function test_la_verification_wave_retourne_le_statut_pending(): void
+    {
+        [, $payment] = $this->createPayment();
+
+        $payment->update([
+            'provider_transaction_id' => 'cos-test-verify-pending',
+        ]);
+
+        Http::fake([
+            'https://api.wave.com/v1/checkout/sessions*' => Http::response([
+                'id' => 'cos-test-verify-pending',
+                'payment_status' => 'processing',
+                'checkout_status' => 'open',
+                'client_reference' => $payment->reference,
+                'currency' => 'XOF',
+                'amount' => '5000.00',
+            ], 200),
+        ]);
+
+        $result = app(PaymentService::class)
+            ->getProvider('wave')
+            ->verify($payment);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('pending', $result['status']);
+        $this->assertSame('processing', $result['payment_status']);
+        $this->assertSame('open', $result['checkout_status']);
+    }
+
+    public function test_la_verification_wave_retourne_le_statut_failed(): void
+    {
+        [, $payment] = $this->createPayment();
+
+        $payment->update([
+            'provider_transaction_id' => 'cos-test-verify-failed',
+        ]);
+
+        Http::fake([
+            'https://api.wave.com/v1/checkout/sessions*' => Http::response([
+                'id' => 'cos-test-verify-failed',
+                'payment_status' => 'failed',
+                'checkout_status' => 'closed',
+                'client_reference' => $payment->reference,
+                'currency' => 'XOF',
+                'amount' => '5000.00',
+            ], 200),
+        ]);
+
+        $result = app(PaymentService::class)
+            ->getProvider('wave')
+            ->verify($payment);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame('failed', $result['payment_status']);
+    }
+
+    public function test_la_verification_wave_retourne_le_statut_cancelled(): void
+    {
+        [, $payment] = $this->createPayment();
+
+        $payment->update([
+            'provider_transaction_id' => 'cos-test-verify-cancelled',
+        ]);
+
+        Http::fake([
+            'https://api.wave.com/v1/checkout/sessions*' => Http::response([
+                'id' => 'cos-test-verify-cancelled',
+                'payment_status' => 'cancelled',
+                'checkout_status' => 'closed',
+                'client_reference' => $payment->reference,
+                'currency' => 'XOF',
+                'amount' => '5000.00',
+            ], 200),
+        ]);
+
+        $result = app(PaymentService::class)
+            ->getProvider('wave')
+            ->verify($payment);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('cancelled', $result['status']);
+        $this->assertSame('cancelled', $result['payment_status']);
+    }
+
+    public function test_la_verification_wave_retourne_le_statut_expired(): void
+    {
+        [, $payment] = $this->createPayment();
+
+        $payment->update([
+            'provider_transaction_id' => 'cos-test-verify-expired',
+        ]);
+
+        Http::fake([
+            'https://api.wave.com/v1/checkout/sessions*' => Http::response([
+                'id' => 'cos-test-verify-expired',
+                'payment_status' => 'expired',
+                'checkout_status' => 'closed',
+                'client_reference' => $payment->reference,
+                'currency' => 'XOF',
+                'amount' => '5000.00',
+            ], 200),
+        ]);
+
+        $result = app(PaymentService::class)
+            ->getProvider('wave')
+            ->verify($payment);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('expired', $result['status']);
+        $this->assertSame('expired', $result['payment_status']);
+    }
+
+    public function test_une_erreur_du_fournisseur_est_geree_lors_de_la_verification_wave(): void
+    {
+        [, $payment] = $this->createPayment();
+
+        $payment->update([
+            'provider_transaction_id' => 'cos-test-verify-error',
+        ]);
+
+        Http::fake([
+            'https://api.wave.com/v1/checkout/sessions*' => Http::response([
+                'code' => 'test-error',
+                'message' => 'Provider error',
+            ], 500),
+        ]);
+
+        $result = app(PaymentService::class)
+            ->getProvider('wave')
+            ->verify($payment);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('provider_error', $result['status']);
+        $this->assertSame($payment->id, $result['payment_id']);
     }
 }

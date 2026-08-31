@@ -99,11 +99,91 @@ class WavePaymentProvider implements PaymentProviderInterface
         Payment $payment,
         array $data = []
     ): array {
-        return [
-            'success' => false,
-            'status' => 'not_implemented',
-            'message' => 'Vérification Wave non implémentée.',
-            'payment_id' => $payment->id,
-        ];
+        $transactionId = $payment->provider_transaction_id;
+
+        if (!$transactionId) {
+            return [
+                'success' => false,
+                'status' => 'missing_transaction_id',
+                'message' => 'Identifiant de transaction Wave absent.',
+                'payment_id' => $payment->id,
+            ];
+        }
+
+        try {
+            $response = Http::withToken(
+                config('services.wave.api_key')
+            )
+                ->acceptJson()
+                ->get(
+                    rtrim(
+                        config('services.wave.api_url'),
+                        '/'
+                    ) . '/checkout/sessions',
+                    [
+                        'transaction_id' => $transactionId,
+                    ]
+                );
+
+            if ($response->failed()) {
+                Log::error(
+                    'Wave checkout verification failed',
+                    [
+                        'payment_id' => $payment->id,
+                        'provider_transaction_id' => $transactionId,
+                        'status' => $response->status(),
+                        'body' => $response->json(),
+                    ]
+                );
+
+                return [
+                    'success' => false,
+                    'status' => 'provider_error',
+                    'message' => 'Impossible de vérifier la session Wave.',
+                    'payment_id' => $payment->id,
+                ];
+            }
+
+            $result = $response->json();
+
+            $session = $result['data'][0] ?? $result;
+
+            $paymentStatus = $session['payment_status'] ?? null;
+            $checkoutStatus = $session['checkout_status'] ?? null;
+
+            $status = match ($paymentStatus) {
+                'succeeded', 'completed' => 'paid',
+                'failed' => 'failed',
+                'cancelled', 'canceled' => 'cancelled',
+                'expired' => 'expired',
+                default => 'pending',
+            };
+
+            return [
+                'success' => true,
+                'status' => $status,
+                'payment_id' => $payment->id,
+                'provider_transaction_id' => $transactionId,
+                'payment_status' => $paymentStatus,
+                'checkout_status' => $checkoutStatus,
+                'session' => $session,
+            ];
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Wave payment verification exception',
+                [
+                    'payment_id' => $payment->id,
+                    'provider_transaction_id' => $transactionId,
+                    'message' => $exception->getMessage(),
+                ]
+            );
+
+            return [
+                'success' => false,
+                'status' => 'exception',
+                'message' => 'Erreur lors de la vérification Wave.',
+                'payment_id' => $payment->id,
+            ];
+        }
     }
 }
