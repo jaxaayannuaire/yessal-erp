@@ -182,7 +182,90 @@ La base de données utilisée par l'API est PostgreSQL.
 
 ---
 
-## 2026-08-30 — Module de paiement Wave
+## 2026-08-31 — Module de paiement Wave : intégration et tests
+
+### Validé
+
+L'intégration Checkout Wave a été validée avec la configuration de test dédiée.
+
+Flux validés :
+
+- création d'un paiement Yessal ;
+- initiation d'une session Checkout Wave ;
+- récupération du `provider_transaction_id` ;
+- récupération de l'URL Checkout ;
+- transmission du `client_reference` ;
+- traitement du webhook signé ;
+- `checkout.session.completed` → `paid` ;
+- `checkout.session.failed` → `failed` ;
+- `checkout.session.cancelled` → `cancelled` ;
+- `checkout.session.expired` → `expired` ;
+- paiement `renewal` ;
+- protection d'un paiement déjà `paid` ;
+- signature invalide refusée ;
+- signature absente refusée pour les événements réels ;
+- healthcheck sans signature accepté ;
+- événement inconnu ignoré ;
+- paiement Wave introuvable ignoré.
+
+### Tests automatisés
+
+Ajout :
+
+```text
+tests/Feature/Caisse/WavePaymentApiTest.php
+```
+
+Résultat validé :
+
+```text
+16 tests
+59 assertions
+0 échec
+```
+
+La suite complète Caisse a ensuite été exécutée :
+
+```text
+159 tests
+489 assertions
+0 échec
+```
+
+### Validation API Wave
+
+Un appel réel à l'API Wave de test a confirmé :
+
+```text
+HTTP 200
+checkout_status = open
+payment_status  = processing
+wave_launch_url = générée
+```
+
+Le premier échec d'authentification provenait de l'absence de `WAVE_API_KEY` dans `.env.testing`. Après ajout de la configuration, l'initiation Checkout a fonctionné.
+
+### Idempotence
+
+Le comportement de répétition des callbacks a été vérifié manuellement.
+
+`completed` est protégé lorsqu'un paiement est déjà `paid`. Les événements `failed/cancelled/expired` peuvent toutefois être retraités au niveau du webhook. Une idempotence persistante par identifiant d'événement reste à évaluer avant production.
+
+### Limite actuelle
+
+`WavePaymentProvider::verify()` reste non implémenté.
+
+### Commit
+
+```text
+12a4c14 test: ajouter les tests d'intégration Wave
+```
+
+> L'intégration Wave est validée pour les flux actuellement couverts, mais n'est pas encore déclarée prête pour la production.
+
+---
+
+## 2026-08-30 — Device Management, Quotas et consolidation Caisse
 
 ### État
 

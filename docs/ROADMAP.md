@@ -1,6 +1,6 @@
 # Yessal ERP — ROADMAP
 
-> **Mise à jour : 30 août 2026**
+> **Mise à jour : 31 août 2026**
 >
 > Cette feuille de route est le document de pilotage du projet. Elle indique l’état des grands blocs, les priorités et les prochaines étapes. Les détails techniques et l’historique des changements sont documentés séparément dans `docs/CHANGELOG.md` et `docs/architecture/`.
 
@@ -67,8 +67,8 @@ Yessal Caisse
 | Isolation multi-tenant | ✅ Réalisé |
 | Scheduler | ✅ Réalisé |
 | Cleanup des logs Device | ✅ Réalisé |
-| Paiement Wave — premiers flux | 🧪 Validé |
-| Paiement Wave — consolidation complète | 🔄 En cours |
+| Paiement Wave — Checkout + Webhook | 🧪 Validé |
+| Paiement Wave — vérification serveur et idempotence persistante | 🔄 En cours |
 | Application Flutter | 🔄 En développement |
 | Provisioning SaaS | ⏳ Planifié |
 | Provisioning Dolibarr | ⏳ Planifié |
@@ -179,16 +179,27 @@ Les tests couvrent notamment :
 
 ## P1 — Finaliser le paiement Wave
 
-Objectif :
+Les flux Checkout et Webhook actuellement implémentés sont validés.
 
-- consolider l’intégration Wave ;
-- finaliser l’abstraction du fournisseur ;
-- garantir l’idempotence ;
-- gérer les références externes ;
-- renforcer les callbacks/webhooks ;
-- couvrir les erreurs ;
-- compléter les tests d’intégration ;
-- préparer la validation production.
+Validé :
+
+- initiation Checkout ;
+- `client_reference` ;
+- `provider_transaction_id` ;
+- webhook signé ;
+- `completed`, `failed`, `cancelled`, `expired` ;
+- paiements `initial` et `renewal` ;
+- gestion des erreurs ;
+- tests automatisés Wave : 16 tests / 59 assertions ;
+- suite Caisse complète : 159 tests / 489 assertions.
+
+Reste à réaliser :
+
+- implémenter `WavePaymentProvider::verify()` ;
+- définir une idempotence persistante par événement ;
+- renforcer les transitions de statuts ;
+- finaliser les tests de production et de résilience ;
+- préparer la configuration et la validation production.
 
 **Statut : 🔄 En cours**
 
