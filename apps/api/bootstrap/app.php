@@ -6,6 +6,7 @@ use App\Http\Middleware\ResolveOrganizationContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -30,4 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 $request->is('api/*') || $request->expectsJson(),
         );
     })
+	->withSchedule(function (Schedule $schedule): void {
+    $schedule->command('subscriptions:process-lifecycle')
+        ->dailyAt('01:00');
+	})
     ->create();

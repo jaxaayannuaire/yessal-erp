@@ -15,12 +15,9 @@ Artisan::command('inspire', function () {
 */
 
 // Vérification des abonnements arrivés à expiration
-Schedule::command('subscriptions:expire')
-    ->hourly();
+
 
 Schedule::command('device-activity:cleanup')
     ->daily();
 
 // Création automatique des paiements de renouvellement
-Schedule::command('subscriptions:renew')
-    ->dailyAt('00:05');
