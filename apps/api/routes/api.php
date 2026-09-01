@@ -253,27 +253,29 @@ Route::prefix('v1')->group(function () {
         );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Abonnements
-        |--------------------------------------------------------------------------
-        */
+		/*
+		|--------------------------------------------------------------------------
+		| Abonnements
+		|--------------------------------------------------------------------------
+		*/
 
-        Route::apiResource(
-            'subscriptions',
-            SubscriptionController::class
-        );
+		Route::middleware('organization.context')->group(function () {
 
-        Route::post(
-            'subscriptions/{subscription}/activate',
-            [SubscriptionController::class, 'activate']
-        );
+			Route::apiResource(
+				'subscriptions',
+				SubscriptionController::class
+			);
 
-        Route::post(
-            'subscriptions/{subscription}/cancel',
-            [SubscriptionController::class, 'cancel']
-        );
+			Route::post(
+				'subscriptions/{subscription}/activate',
+				[SubscriptionController::class, 'activate']
+			);
 
+			Route::post(
+				'subscriptions/{subscription}/cancel',
+				[SubscriptionController::class, 'cancel']
+			);
+		});
 
         /*
         |--------------------------------------------------------------------------

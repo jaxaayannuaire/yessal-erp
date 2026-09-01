@@ -11,31 +11,48 @@ use Illuminate\Support\Carbon;
 
 class SubscriptionController extends Controller
 {
-    public function index()
+    private function organization(Request $request): Organization
     {
+        return $request->attributes->get('currentOrganization');
+    }
+
+    private function ensureOwnership(
+        Request $request,
+        Subscription $subscription
+    ): void {
+        if (
+            (int) $subscription->organization_id !==
+            (int) $this->organization($request)->id
+        ) {
+            abort(403, 'Souscription inaccessible.');
+        }
+    }
+
+    public function index(Request $request)
+    {
+        $organization = $this->organization($request);
+
         return response()->json([
-            'subscriptions' => Subscription::with([
-                'organization',
-                'plan',
-            ])->latest()->get(),
+            'subscriptions' => Subscription::where(
+                'organization_id',
+                $organization->id
+            )
+                ->with(['organization', 'plan'])
+                ->latest()
+                ->get(),
         ]);
     }
 
     public function store(Request $request)
     {
+        $organization = $this->organization($request);
+
         $validated = $request->validate([
-            'organization_id' => ['required', 'exists:organizations,id'],
             'plan_id' => ['required', 'exists:plans,id'],
             'billing_cycle' => ['required', 'in:monthly,yearly'],
         ]);
 
-        $organization = Organization::findOrFail(
-            $validated['organization_id']
-        );
-
-        $plan = Plan::findOrFail(
-            $validated['plan_id']
-        );
+        $plan = Plan::findOrFail($validated['plan_id']);
 
         $existingSubscription = Subscription::where(
             'organization_id',
@@ -63,8 +80,8 @@ class SubscriptionController extends Controller
             'billing_cycle' => $validated['billing_cycle'],
             'status' => 'pending',
             'price' => $validated['billing_cycle'] === 'monthly'
-				? $plan->price_monthly
-				: $plan->price_yearly,
+                ? $plan->price_monthly
+                : $plan->price_yearly,
             'currency' => $plan->currency ?? 'XOF',
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
@@ -79,8 +96,12 @@ class SubscriptionController extends Controller
         ], 201);
     }
 
-    public function show(Subscription $subscription)
-    {
+    public function show(
+        Request $request,
+        Subscription $subscription
+    ) {
+        $this->ensureOwnership($request, $subscription);
+
         return response()->json([
             'subscription' => $subscription->load([
                 'organization',
@@ -89,12 +110,16 @@ class SubscriptionController extends Controller
         ]);
     }
 
-    public function update(Request $request, Subscription $subscription)
-    {
+    public function update(
+        Request $request,
+        Subscription $subscription
+    ) {
+        $this->ensureOwnership($request, $subscription);
+
         $validated = $request->validate([
             'status' => [
                 'sometimes',
-                'in:pending,active,cancelled,expired',
+                'in:pending,active,cancelled,expired,past_due',
             ],
             'billing_cycle' => [
                 'sometimes',
@@ -113,65 +138,78 @@ class SubscriptionController extends Controller
         ]);
     }
 
-    public function destroy(Subscription $subscription)
-    {
+    public function destroy(
+        Request $request,
+        Subscription $subscription
+    ) {
+        $this->ensureOwnership($request, $subscription);
+
         $subscription->update([
             'status' => 'cancelled',
+            'cancelled_at' => now(),
         ]);
 
         return response()->json([
             'message' => 'Souscription annulée avec succès.',
         ]);
     }
-	
-	public function activate(Subscription $subscription)
-	{
-		if ($subscription->status === 'cancelled') {
-			return response()->json([
-				'message' => 'Une souscription annulée ne peut pas être activée.',
-			], 422);
-		}
 
-		if ($subscription->status === 'expired') {
-			return response()->json([
-				'message' => 'Une souscription expirée doit être renouvelée.',
-			], 422);
-		}
+    public function activate(
+        Request $request,
+        Subscription $subscription
+    ) {
+        $this->ensureOwnership($request, $subscription);
 
-		$subscription->update([
-			'status' => 'active',
-			'cancelled_at' => null,
-		]);
+        if ($subscription->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Une souscription annulée ne peut pas être activée.',
+            ], 422);
+        }
 
-		return response()->json([
-			'message' => 'Souscription activée avec succès.',
-			'subscription' => $subscription->fresh()->load([
-				'organization',
-				'plan',
-			]),
-		]);
-	}
+        if ($subscription->status === 'expired') {
+            return response()->json([
+                'message' => 'Une souscription expirée doit être renouvelée.',
+            ], 422);
+        }
 
-	public function cancel(Subscription $subscription)
-	{
-		if ($subscription->status === 'cancelled') {
-			return response()->json([
-				'message' => 'La souscription est déjà annulée.',
-				'subscription' => $subscription,
-			]);
-		}
+        $subscription->update([
+            'status' => 'active',
+            'cancelled_at' => null,
+        ]);
 
-		$subscription->update([
-			'status' => 'cancelled',
-			'cancelled_at' => now(),
-		]);
+        return response()->json([
+            'message' => 'Souscription activée avec succès.',
+            'subscription' => $subscription->fresh()->load([
+                'organization',
+                'plan',
+            ]),
+        ]);
+    }
 
-		return response()->json([
-			'message' => 'Souscription annulée avec succès.',
-			'subscription' => $subscription->fresh()->load([
-				'organization',
-				'plan',
-			]),
-		]);
-	}
+    public function cancel(
+        Request $request,
+        Subscription $subscription
+    ) {
+        $this->ensureOwnership($request, $subscription);
+
+        if ($subscription->status === 'cancelled') {
+            return response()->json([
+                'message' => 'La souscription est déjà annulée.',
+                'subscription' => $subscription,
+            ]);
+        }
+
+        $subscription->update([
+            'status' => 'cancelled',
+            'cancelled_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Souscription annulée avec succès.',
+            'subscription' => $subscription->fresh()->load([
+                'organization',
+                'plan',
+            ]),
+        ]);
+    }
 }

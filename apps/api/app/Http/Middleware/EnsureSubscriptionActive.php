@@ -13,28 +13,31 @@ class EnsureSubscriptionActive
         Closure $next
     ): Response {
         $user = $request->user();
-		
-		\Log::info('EnsureSubscriptionActive EXECUTED', [
-			'user_id' => $user?->id,
-		]);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Utilisateur non authentifié par Sanctum.',
+                'message' => 'Utilisateur non authentifié.',
                 'code' => 'authentication_failed',
             ], 401);
         }
 
-        $organization = $user->organizations()
-            ->with([
-                'subscriptions' => function ($query) {
-                    $query->latest('ends_at');
-                },
-            ])
-            ->first();
+        $organization = $request->attributes
+            ->get('currentOrganization');
 
-        if (!$organization) {
+        if (! $organization) {
+            $organizationId = $request->header(
+                'X-Organization-Id'
+            );
+
+            $organizations = $user->organizations();
+
+            $organization = $organizationId !== null
+                ? $organizations->whereKey($organizationId)->first()
+                : $organizations->first();
+        }
+
+        if (! $organization) {
             return response()->json([
                 'success' => false,
                 'message' => 'Aucune organisation associée à cet utilisateur.',
@@ -42,9 +45,17 @@ class EnsureSubscriptionActive
             ], 403);
         }
 
-        $subscription = $organization->subscriptions->first();
+        $subscription = $request->attributes
+            ->get('currentSubscription');
 
-        if (!$subscription) {
+        if (! $subscription) {
+            $subscription = $organization->subscriptions()
+                ->with('plan')
+                ->latest('ends_at')
+                ->first();
+        }
+
+        if (! $subscription) {
             return response()->json([
                 'success' => false,
                 'message' => 'Aucun abonnement trouvé.',
@@ -52,7 +63,13 @@ class EnsureSubscriptionActive
             ], 403);
         }
 
-        if ($subscription->status !== 'active') {
+        $isActive = $subscription->status === 'active';
+
+        $isGracePeriod = $subscription->status === 'past_due'
+            && $subscription->grace_period_ends_at !== null
+            && $subscription->grace_period_ends_at->isFuture();
+
+        if (! $isActive && ! $isGracePeriod) {
             return response()->json([
                 'success' => false,
                 'message' => 'Abonnement inactif.',
@@ -67,8 +84,18 @@ class EnsureSubscriptionActive
         );
 
         $request->attributes->set(
+            'organization_id',
+            $organization->id
+        );
+
+        $request->attributes->set(
             'currentSubscription',
             $subscription
+        );
+
+        $request->attributes->set(
+            'currentPlan',
+            $subscription->plan
         );
 
         return $next($request);
