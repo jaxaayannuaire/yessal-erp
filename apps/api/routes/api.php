@@ -11,7 +11,7 @@ use App\Http\Controllers\Api\V1\Caisse\TerminalController;
 use App\Http\Controllers\Api\V1\Caisse\DeviceController;
 use App\Http\Controllers\Api\V1\Caisse\CashSessionController;
 use App\Http\Controllers\Api\V1\Caisse\SaleController;
-use App\Http\Controllers\Api\V1\Caisse\PaymentController as CaissePaymentController;;
+use App\Http\Controllers\Api\V1\Caisse\PaymentController as CaissePaymentController;
 use App\Http\Controllers\Api\V1\Caisse\StockController;
 use App\Http\Controllers\Api\V1\Caisse\SyncController;
 use Illuminate\Support\Facades\Route;
@@ -107,100 +107,120 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
 
-		Route::middleware('organization.context')->get(
-			'/organization/entitlements',
-			[EntitlementController::class, 'index']
-		);
+        Route::middleware('organization.context')->get(
+            '/organization/entitlements',
+            [EntitlementController::class, 'index']
+        );
 
-		Route::middleware([
-			'organization.context',
-		])->prefix('caisse')->group(function () {
+        Route::middleware([
+            'organization.context',
+        ])->prefix('caisse')->group(function () {
 
-			Route::apiResource('shops', ShopController::class)
-				->only([
-					'index',
-					'store',
-					'show',
-					'update',
-				]);
+            Route::apiResource('shops', ShopController::class)
+                ->only([
+                    'index',
+                    'store',
+                    'show',
+                    'update',
+                ]);
 
-			Route::apiResource('terminals', TerminalController::class)
-				->only([
-					'index',
-					'store',
-					'show',
-					'update',
-				]);
+            Route::apiResource('terminals', TerminalController::class)
+                ->only([
+                    'index',
+                    'store',
+                    'show',
+                    'update',
+                ]);
 
-			Route::apiResource('devices', DeviceController::class)
-				->only([
-					'index',
-					'store',
-					'show',
-					'update',
-				]);
+            Route::apiResource('devices', DeviceController::class)
+                ->only([
+                    'index',
+                    'store',
+                    'show',
+                    'update',
+                ]);
 
-			Route::get(
-					'devices/{device}/activity',
-					[DeviceController::class, 'activity']
-				)->name('devices.activity');
+            Route::get(
+                'devices/{device}/activity',
+                [DeviceController::class, 'activity']
+            )->name('devices.activity');
 
-				Route::post(
-					'devices/{device}/revoke',
-					[DeviceController::class, 'revoke']
-				)->name('devices.revoke');
+            Route::post(
+                'devices/{device}/revoke',
+                [DeviceController::class, 'revoke']
+            )->name('devices.revoke');
 
-				Route::post(
-					'devices/{device}/activate',
-					[DeviceController::class, 'activate']
-				)->name('devices.activate');
+            Route::post(
+                'devices/{device}/activate',
+                [DeviceController::class, 'activate']
+            )->name('devices.activate');
 
+            Route::get(
+                'cash-sessions',
+                [CashSessionController::class, 'index']
+            )->name('cash-sessions.index');
 
-			Route::get('cash-sessions', [CashSessionController::class, 'index'])
-				->name('cash-sessions.index');
+            Route::post(
+                'cash-sessions/open',
+                [CashSessionController::class, 'store']
+            )->name('cash-sessions.open');
 
-			Route::post('cash-sessions/open', [CashSessionController::class, 'store'])
-				->name('cash-sessions.open');
+            Route::get(
+                'cash-sessions/{cashSession}',
+                [CashSessionController::class, 'show']
+            )->name('cash-sessions.show');
 
-			Route::get('cash-sessions/{cashSession}', [CashSessionController::class, 'show'])
-				->name('cash-sessions.show');
+            Route::post(
+                'cash-sessions/{cashSession}/close',
+                [CashSessionController::class, 'close']
+            )->name('cash-sessions.close');
 
-			Route::post('cash-sessions/{cashSession}/close', [CashSessionController::class, 'close'])
-				->name('cash-sessions.close');
+            Route::get(
+                'sales',
+                [SaleController::class, 'index']
+            )->name('sales.index');
 
-			Route::get('sales', [SaleController::class, 'index'])
-            ->name('sales.index');
+            Route::post(
+                'sales',
+                [SaleController::class, 'store']
+            )->name('sales.store');
 
-			Route::post('sales', [SaleController::class, 'store'])
-				->name('sales.store');
+            Route::get(
+                'sales/{sale}',
+                [SaleController::class, 'show']
+            )->name('sales.show');
 
-			Route::get('sales/{sale}', [SaleController::class, 'show'])
-				->name('sales.show');
+            Route::post(
+                'sales/{sale}/finalize',
+                [SaleController::class, 'finalize']
+            )->name('sales.finalize');
 
-			Route::post('sales/{sale}/finalize', [SaleController::class, 'finalize'])
-				->name('sales.finalize');
+            Route::get(
+                'sales/{sale}/payments',
+                [CaissePaymentController::class, 'index']
+            )->name('sales.payments.index');
 
-			Route::get(
-				'sales/{sale}/payments',
-				[CaissePaymentController::class, 'index']
-			)->name('sales.payments.index');
+            Route::post(
+                'sales/{sale}/payments/cash',
+                [CaissePaymentController::class, 'payCash']
+            )->name('sales.payments.cash');
 
-			Route::post(
-				'sales/{sale}/payments/cash',
-				[CaissePaymentController::class, 'payCash']
-			)->name('sales.payments.cash');
+            Route::get(
+                'stock',
+                [StockController::class, 'index']
+            )->name('stock.index');
 
-			Route::get('stock', [StockController::class, 'index'])
-				->name('stock.index');
+            Route::post(
+                'stock/adjustments',
+                [StockController::class, 'adjust']
+            )->name('stock.adjust');
 
-			Route::post('stock/adjustments', [StockController::class, 'adjust'])
-				->name('stock.adjust');
+            Route::post(
+                'sync/push',
+                [SyncController::class, 'push']
+            )->name('sync.push');
+        });
 
-			Route::post('sync/push', [SyncController::class, 'push'])
-				->name('sync.push');
-
-
-		});
 
         /*
         |--------------------------------------------------------------------------
@@ -209,36 +229,37 @@ Route::prefix('v1')->group(function () {
         */
 
         Route::post(
-			'organizations',
-			[OrganizationController::class, 'store']
-		);
+            'organizations',
+            [OrganizationController::class, 'store']
+        );
 
-		Route::middleware('organization.context')->group(function () {
-			Route::get(
-				'organizations',
-				[OrganizationController::class, 'index']
-			);
+        Route::middleware('organization.context')->group(function () {
 
-			Route::get(
-				'organizations/{organization}',
-				[OrganizationController::class, 'show']
-			);
+            Route::get(
+                'organizations',
+                [OrganizationController::class, 'index']
+            );
 
-			Route::put(
-				'organizations/{organization}',
-				[OrganizationController::class, 'update']
-			);
+            Route::get(
+                'organizations/{organization}',
+                [OrganizationController::class, 'show']
+            );
 
-			Route::patch(
-				'organizations/{organization}',
-				[OrganizationController::class, 'update']
-			);
+            Route::put(
+                'organizations/{organization}',
+                [OrganizationController::class, 'update']
+            );
 
-			Route::delete(
-				'organizations/{organization}',
-				[OrganizationController::class, 'destroy']
-			);
-		});
+            Route::patch(
+                'organizations/{organization}',
+                [OrganizationController::class, 'update']
+            );
+
+            Route::delete(
+                'organizations/{organization}',
+                [OrganizationController::class, 'destroy']
+            );
+        });
 
 
         /*
@@ -253,29 +274,30 @@ Route::prefix('v1')->group(function () {
         );
 
 
-		/*
-		|--------------------------------------------------------------------------
-		| Abonnements
-		|--------------------------------------------------------------------------
-		*/
+        /*
+        |--------------------------------------------------------------------------
+        | Abonnements
+        |--------------------------------------------------------------------------
+        */
 
-		Route::middleware('organization.context')->group(function () {
+        Route::middleware('organization.context')->group(function () {
 
-			Route::apiResource(
-				'subscriptions',
-				SubscriptionController::class
-			);
+            Route::apiResource(
+                'subscriptions',
+                SubscriptionController::class
+            );
 
-			Route::post(
-				'subscriptions/{subscription}/activate',
-				[SubscriptionController::class, 'activate']
-			);
+            Route::post(
+                'subscriptions/{subscription}/activate',
+                [SubscriptionController::class, 'activate']
+            );
 
-			Route::post(
-				'subscriptions/{subscription}/cancel',
-				[SubscriptionController::class, 'cancel']
-			);
-		});
+            Route::post(
+                'subscriptions/{subscription}/cancel',
+                [SubscriptionController::class, 'cancel']
+            );
+        });
+
 
         /*
         |--------------------------------------------------------------------------
@@ -283,26 +305,27 @@ Route::prefix('v1')->group(function () {
         |--------------------------------------------------------------------------
         */
 
-        Route::apiResource(
-            'payments',
-            PaymentController::class
-        )->only([
-            'index',
-            'store',
-            'show',
-        ]);
+        Route::middleware('organization.context')->group(function () {
 
-        Route::post(
-            'payments/{payment}/confirm',
-            [PaymentController::class, 'confirm']
-        );
+            Route::apiResource(
+                'payments',
+                PaymentController::class
+            )->only([
+                'index',
+                'store',
+                'show',
+            ]);
 
-        Route::post(
-            'payments/{payment}/initiate',
-            [PaymentController::class, 'initiate']
-        );
+            Route::post(
+                'payments/{payment}/confirm',
+                [PaymentController::class, 'confirm']
+            );
 
-
+            Route::post(
+                'payments/{payment}/initiate',
+                [PaymentController::class, 'initiate']
+            );
+        });
     });
 
 

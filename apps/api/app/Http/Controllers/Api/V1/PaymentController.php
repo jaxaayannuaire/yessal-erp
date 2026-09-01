@@ -5,19 +5,62 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\Subscription;
+use App\Models\Organization;
 use App\Services\Payments\PaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
-    public function index()
+    private function currentOrganization(Request $request): Organization
     {
+        return $request->attributes->get('currentOrganization');
+    }
+
+    private function ensureOwnership(
+        Request $request,
+        Payment $payment
+    ): void {
+        $payment->loadMissing('subscription');
+
+        abort_unless(
+            $payment->subscription
+                && (int) $payment->subscription->organization_id
+                    === (int) $this->currentOrganization($request)->id,
+            403,
+            'Paiement inaccessible.'
+        );
+    }
+
+    private function ensureSubscriptionOwnership(
+        Request $request,
+        Subscription $subscription
+    ): void {
+        abort_unless(
+            (int) $subscription->organization_id
+                === (int) $this->currentOrganization($request)->id,
+            403,
+            'Souscription inaccessible.'
+        );
+    }
+        public function index(Request $request)
+    {
+        $organization = $this->currentOrganization($request);
+
         return response()->json([
-            'payments' => Payment::with([
-                'subscription.organization',
-                'subscription.plan',
-            ])->latest()->get(),
+            'payments' => Payment::whereHas(
+                'subscription',
+                fn ($query) => $query->where(
+                    'organization_id',
+                    $organization->id
+                )
+            )
+                ->with([
+                    'subscription.organization',
+                    'subscription.plan',
+                ])
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -40,6 +83,10 @@ class PaymentController extends Controller
         $subscription = Subscription::findOrFail(
             $validated['subscription_id']
         );
+        $this->ensureSubscriptionOwnership(
+            $request,
+            $subscription
+        );
 
         $payment = $paymentService->createPayment(
             $subscription,
@@ -56,8 +103,10 @@ class PaymentController extends Controller
         ], 201);
     }
 
-    public function show(Payment $payment)
+    public function show(Request $request, Payment $payment)
     {
+        $this->ensureOwnership($request, $payment);
+
         return response()->json([
             'payment' => $payment->load([
                 'subscription.organization',
@@ -71,6 +120,7 @@ class PaymentController extends Controller
         Payment $payment,
         PaymentService $paymentService
     ) {
+        $this->ensureOwnership($request, $payment);
         $validated = $request->validate([
             'provider_transaction_id' => [
                 'nullable',
@@ -99,9 +149,11 @@ class PaymentController extends Controller
     }
 
     public function initiate(
+        Request $request,
         Payment $payment,
         PaymentService $paymentService
     ) {
+        $this->ensureOwnership($request, $payment);
         return response()->json(
             $paymentService->initiatePayment($payment)
         );
