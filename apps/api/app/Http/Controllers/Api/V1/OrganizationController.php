@@ -49,9 +49,13 @@ class OrganizationController extends Controller
     public function show(Request $request, Organization $organization)
     {
         abort_unless(
-            $request->user()->organizations()
-                ->whereKey($organization->id)
-                ->exists(),
+            $request->user()->belongsToOrganization($organization),
+            403
+        );
+
+        abort_unless(
+            (int) $request->attributes->get('currentOrganization')->id
+                === (int) $organization->id,
             403
         );
 
@@ -63,10 +67,16 @@ class OrganizationController extends Controller
     public function update(Request $request, Organization $organization)
     {
         abort_unless(
-            $request->user()->organizations()
-                ->whereKey($organization->id)
-                ->wherePivot('role', 'owner')
-                ->exists(),
+            $request->user()->hasOrganizationRole(
+                $organization,
+                'owner'
+            ),
+            403
+        );
+
+        abort_unless(
+            (int) $request->attributes->get('currentOrganization')->id
+                === (int) $organization->id,
             403
         );
 
@@ -90,10 +100,16 @@ class OrganizationController extends Controller
     public function destroy(Request $request, Organization $organization)
     {
         abort_unless(
-            $request->user()->organizations()
-                ->whereKey($organization->id)
-                ->wherePivot('role', 'owner')
-                ->exists(),
+            $request->user()->hasOrganizationRole(
+                $organization,
+                'owner'
+            ),
+            403
+        );
+
+        abort_unless(
+            (int) $request->attributes->get('currentOrganization')->id
+                === (int) $organization->id,
             403
         );
 
