@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Entitlement;
+use App\Models\Module;
 use App\Models\Plan;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -27,5 +29,33 @@ class PlanFactory extends Factory
             'is_active' => true,
             'sort_order' => 0,
         ];
+    }
+
+    public function withCaisseEntitlement(): static
+    {
+        return $this->afterCreating(function (Plan $plan): void {
+            $module = Module::firstOrCreate(
+                ['slug' => 'caisse'],
+                [
+                    'name' => 'Caisse',
+                    'description' => 'Gestion des caisses, ventes et paiements.',
+                    'is_active' => true,
+                    'sort_order' => 10,
+                ]
+            );
+
+            $entitlement = Entitlement::firstOrCreate(
+                ['slug' => 'pos.sell'],
+                [
+                    'name' => 'Effectuer une vente',
+                    'description' => null,
+                    'is_active' => true,
+                    'sort_order' => 0,
+                ]
+            );
+
+            $module->entitlements()->syncWithoutDetaching([$entitlement->id]);
+            $plan->modules()->syncWithoutDetaching([$module->id]);
+        });
     }
 }

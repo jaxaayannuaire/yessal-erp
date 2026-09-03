@@ -24,7 +24,7 @@ class DeviceQuotaApiTest extends TestCase
             'role' => 'owner',
         ]);
 
-        $plan = Plan::factory()->create([
+        $plan = Plan::factory()->withCaisseEntitlement()->create([
             'max_devices' => $maxDevices,
             'is_active' => true,
         ]);

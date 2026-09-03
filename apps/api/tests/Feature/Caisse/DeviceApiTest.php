@@ -27,7 +27,7 @@ class DeviceApiTest extends TestCase
             'role' => 'owner',
         ]);
 
-        $plan = Plan::factory()->create([
+        $plan = Plan::factory()->withCaisseEntitlement()->create([
             'is_active' => true,
         ]);
 

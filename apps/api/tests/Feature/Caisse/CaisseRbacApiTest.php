@@ -4,7 +4,9 @@ namespace Tests\Feature\Caisse;
 
 use App\Models\Caisse\Device;
 use App\Models\Organization;
+use App\Models\Plan;
 use App\Models\Role;
+use App\Models\Subscription;
 use App\Models\User;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,6 +26,8 @@ class CaisseRbacApiTest extends TestCase
 
     private function userWithRole(Organization $organization, string $roleSlug): User
     {
+        $this->ensureCaisseAccess($organization);
+
         $user = User::factory()->create();
         $organization->users()->attach($user->id, ['role' => 'member']);
 
@@ -38,6 +42,8 @@ class CaisseRbacApiTest extends TestCase
 
     private function member(Organization $organization): User
     {
+        $this->ensureCaisseAccess($organization);
+
         $user = User::factory()->create();
         $organization->users()->attach($user->id, ['role' => 'member']);
 
@@ -47,6 +53,23 @@ class CaisseRbacApiTest extends TestCase
     private function headers(Organization $organization): array
     {
         return ['X-Organization-Id' => (string) $organization->id];
+    }
+
+    private function ensureCaisseAccess(Organization $organization): void
+    {
+        if ($organization->subscriptions()->exists()) {
+            return;
+        }
+
+        $plan = Plan::factory()->withCaisseEntitlement()->create();
+
+        Subscription::factory()->create([
+            'organization_id' => $organization->id,
+            'plan_id' => $plan->id,
+            'status' => 'active',
+            'starts_at' => now()->subMinute(),
+            'ends_at' => now()->addMonth(),
+        ]);
     }
 
     private function syncPayload(Device $device): array
@@ -165,6 +188,7 @@ class CaisseRbacApiTest extends TestCase
     public function test_legacy_owner_bypass_remains_available(): void
     {
         $organization = Organization::factory()->create();
+        $this->ensureCaisseAccess($organization);
         $owner = User::factory()->create();
         $organization->users()->attach($owner->id, ['role' => 'owner']);
 

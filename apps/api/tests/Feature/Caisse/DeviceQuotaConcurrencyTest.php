@@ -18,7 +18,7 @@ class DeviceQuotaConcurrencyTest extends TestCase
     {
         $organization = Organization::factory()->create();
 
-        $plan = Plan::factory()->create([
+        $plan = Plan::factory()->withCaisseEntitlement()->create([
             'max_devices' => 1,
             'is_active' => true,
         ]);

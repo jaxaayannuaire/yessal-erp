@@ -29,7 +29,7 @@ class EnsureEntitlement
             ], 401);
         }
 
-        $organization = $user->organizations()->first();
+        $organization = $request->attributes->get('currentOrganization');
 
         if (! $organization) {
             return response()->json([
@@ -50,11 +50,6 @@ class EnsureEntitlement
                 'entitlement' => $entitlement,
             ], 403);
         }
-
-        $request->attributes->set(
-            'currentOrganization',
-            $organization
-        );
 
         return $next($request);
     }

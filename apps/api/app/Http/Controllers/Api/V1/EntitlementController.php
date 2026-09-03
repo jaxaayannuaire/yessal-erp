@@ -15,11 +15,7 @@ class EntitlementController extends Controller
         EntitlementService $entitlementService,
         PlanLimitService $planLimitService
     ): JsonResponse {
-        $user = $request->user();
-
-        $organization = $user
-            ->organizations()
-            ->first();
+        $organization = $request->attributes->get('currentOrganization');
 
         if (! $organization) {
             return response()->json([

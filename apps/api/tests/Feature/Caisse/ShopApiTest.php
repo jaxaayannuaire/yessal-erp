@@ -46,7 +46,7 @@ class ShopApiTest extends TestCase
             'role_id' => $adminRole->id,
         ]);
 
-        $plan = Plan::factory()->create([
+        $plan = Plan::factory()->withCaisseEntitlement()->create([
             'is_active' => true,
         ]);
 

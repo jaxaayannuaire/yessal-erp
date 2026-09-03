@@ -110,7 +110,11 @@ Route::prefix('v1')->group(function () {
         |--------------------------------------------------------------------------
         */
 
-        Route::middleware('organization.context')
+        Route::middleware([
+            'organization.context',
+            'subscription',
+            'entitlement:pos.sell',
+        ])
             ->prefix('caisse')
             ->group(function () {
 

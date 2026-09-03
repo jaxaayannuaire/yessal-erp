@@ -24,7 +24,7 @@ class TenantIsolationTest extends TestCase
             'role' => 'owner',
         ]);
 
-        $plan = Plan::factory()->create();
+        $plan = Plan::factory()->withCaisseEntitlement()->create();
 
         Subscription::factory()->create([
             'organization_id' => $organization->id,

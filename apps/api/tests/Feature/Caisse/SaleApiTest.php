@@ -26,7 +26,7 @@ class SaleApiTest extends TestCase
 
         $organization->users()->attach($user->id, ['role' => 'owner']);
 
-        $plan = Plan::factory()->create(['is_active' => true]);
+        $plan = Plan::factory()->withCaisseEntitlement()->create(['is_active' => true]);
 
         Subscription::factory()->create([
             'organization_id' => $organization->id,
