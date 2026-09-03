@@ -172,7 +172,6 @@ class PaymentController extends Controller
 
         Log::info('Wave webhook request arrived', [
             'signature_present' => !empty($signature),
-            'raw_body' => $rawBody,
         ]);
 
         if (!is_array($payload)) {
@@ -215,9 +214,6 @@ class PaymentController extends Controller
             ) {
                 Log::warning(
                     'Wave webhook signature format invalid.',
-                    [
-                        'signature' => $signature,
-                    ]
                 );
 
                 return response()->json([
@@ -237,6 +233,16 @@ class PaymentController extends Controller
                 return response()->json([
                     'message' => 'Configuration webhook invalide.',
                 ], 500);
+            }
+
+            if (!ctype_digit($timestamp) || abs(now()->timestamp - (int) $timestamp) > 300) {
+                Log::warning('Wave webhook timestamp outside accepted window.', [
+                    'event' => $event,
+                ]);
+
+                return response()->json([
+                    'message' => 'Webhook Wave expiré ou invalide.',
+                ], 401);
             }
 
             $expectedSignature = hash_hmac(
@@ -345,6 +351,19 @@ class PaymentController extends Controller
                     'transaction_id' => $transactionId,
                 ]
             );
+
+            return response()->json([
+                'received' => true,
+                'processed' => false,
+                'message' => 'Paiement introuvable.',
+            ], 200);
+        }
+
+        if ($payment->provider !== 'wave') {
+            Log::warning('Wave webhook payment provider mismatch.', [
+                'event' => $event,
+                'payment_id' => $payment->id,
+            ]);
 
             return response()->json([
                 'received' => true,

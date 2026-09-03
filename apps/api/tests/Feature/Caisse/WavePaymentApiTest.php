@@ -25,10 +25,10 @@ class WavePaymentApiTest extends TestCase
         return [$subscription, $payment];
     }
 
-    private function signedWebhook(array $payload)
+    private function signedWebhook(array $payload, ?int $timestamp = null)
     {
         $rawBody = json_encode($payload, JSON_THROW_ON_ERROR);
-        $timestamp = time();
+        $timestamp ??= time();
 
         $signature = hash_hmac(
             'sha256',
@@ -255,6 +255,33 @@ class WavePaymentApiTest extends TestCase
 
         $response->assertUnauthorized();
 
+        $this->assertSame('pending', $payment->fresh()->status);
+    }
+
+    public function test_un_webhook_wave_expire_est_rejete(): void
+    {
+        $response = $this->signedWebhook([
+            'type' => 'checkout.session.completed',
+            'data' => ['id' => 'cos-test-expired-webhook'],
+        ], time() - 301);
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_un_webhook_wave_ne_modifie_pas_un_paiement_d_un_autre_provider(): void
+    {
+        [, $payment] = $this->createPayment();
+        $payment->update([
+            'provider' => 'other',
+            'provider_transaction_id' => 'cos-test-other-provider',
+        ]);
+
+        $response = $this->signedWebhook([
+            'type' => 'checkout.session.completed',
+            'data' => ['id' => 'cos-test-other-provider'],
+        ]);
+
+        $response->assertOk()->assertJsonPath('processed', false);
         $this->assertSame('pending', $payment->fresh()->status);
     }
 
