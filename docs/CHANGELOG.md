@@ -6,6 +6,35 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-03 — Sécurisation RBAC, abonnements, Wave, Sync et administration plateforme
+
+### RBAC Caisse
+
+- Ajout des permissions `devices.view`, `devices.manage`, `cash.view` et `sync.push`, du chargement de `RbacSeeder` par le seeder principal, ainsi que des tests de cohérence et HTTP RBAC Caisse.
+
+### Sécurité et accès Caisse
+
+- Protection des routes Caisse par la chaîne `auth:sanctum → organization.context → subscription → entitlement:pos.sell → permission:*`.
+- Correction de la résolution multi-organisation des entitlements via l'organisation courante.
+- Blocage des actions SaaS sensibles pour les utilisateurs normaux, y compris la balance Wave, l'activation manuelle d'abonnement, la confirmation de paiement et la mutation directe du statut d'abonnement.
+
+### Synchronisation et Wave
+
+- Durcissement de l'idempotence Sync : unicité tenant `organization_id + event_uuid`, réponse de doublon stable et tests d'isolation inter-organisation.
+- Durcissement des webhooks Wave : réduction des données journalisées, contrôle de fraîcheur de 300 secondes et protection des paiements d'un autre provider.
+
+### Administration plateforme
+
+- Ajout de `users.is_platform_admin`, de `User::isPlatformAdmin()`, de `UserFactory::platformAdmin()` et du middleware `EnsurePlatformAdmin` (`platform.admin`).
+- Les administrateurs plateforme peuvent gérer les plans, consulter la balance Wave, activer manuellement un abonnement et confirmer un paiement.
+- Distinction explicite entre owner d'organisation, admin RBAC d'organisation et admin plateforme.
+
+### Tests
+
+Validation : 316 tests, 799 assertions, 0 échec.
+
+---
+
 ## 2026-08-30 — Device Management, Quotas et consolidation Caisse
 
 ### Gestion des appareils
