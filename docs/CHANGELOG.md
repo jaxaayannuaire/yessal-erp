@@ -6,6 +6,26 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-03 — Catalogue Produits Caisse
+
+### API catalogue
+
+- Ajout de l'API Produit Caisse : liste paginée, consultation, création et mise à jour, incluant la désactivation via le statut existant.
+- Les accès sont isolés par organisation et protégés par la chaîne Caisse, avec `products.view` en lecture et `products.manage` en écriture.
+- La recherche couvre le nom, le SKU et le code-barres ; SKU et code-barres restent uniques par boutique.
+
+### Quotas et intégrations
+
+- `max_products` est désormais appliqué à la création ; `NULL` conserve le comportement illimité.
+- Les produits créés par API sont utilisables par les ajustements de stock et les ventes.
+- Le stock initial reste géré par les ajustements de stock ; les catégories et variantes existantes sont conservées, sans nouvelle API dédiée dans ce lot.
+
+### Tests
+
+Validation : 331 tests, 863 assertions, 0 échec.
+
+---
+
 ## 2026-09-03 — Consolidation des quotas SaaS
 
 ### Limites et usages

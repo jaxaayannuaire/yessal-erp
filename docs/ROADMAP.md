@@ -53,6 +53,7 @@ Yessal Caisse
 | Modules / Entitlements | ✅ Réalisé |
 | Quotas | ✅ Réalisé |
 | Shop | ✅ Réalisé |
+| Catalogue produits | ✅ Réalisé |
 | Terminal | ✅ Réalisé |
 | Device | ✅ Réalisé |
 | Device Activity | ✅ Réalisé |
@@ -109,6 +110,7 @@ Les principaux domaines backend sont réalisés :
 
 ```text
 Shop
+Product Catalog
 Terminal
 Device
 Stock

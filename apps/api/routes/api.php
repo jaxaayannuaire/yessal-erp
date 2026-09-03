@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\EntitlementController;
 use App\Http\Controllers\Api\V1\Caisse\ShopController;
+use App\Http\Controllers\Api\V1\Caisse\ProductController;
 use App\Http\Controllers\Api\V1\Caisse\TerminalController;
 use App\Http\Controllers\Api\V1\Caisse\DeviceController;
 use App\Http\Controllers\Api\V1\Caisse\CashSessionController;
@@ -152,6 +153,41 @@ Route::prefix('v1')->group(function () {
                 )
                     ->middleware('permission:shops.manage')
                     ->name('shops.update');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Produits
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'products',
+                    [ProductController::class, 'index']
+                )
+                    ->middleware('permission:products.view')
+                    ->name('products.index');
+
+                Route::post(
+                    'products',
+                    [ProductController::class, 'store']
+                )
+                    ->middleware('permission:products.manage')
+                    ->name('products.store');
+
+                Route::get(
+                    'products/{product}',
+                    [ProductController::class, 'show']
+                )
+                    ->middleware('permission:products.view')
+                    ->name('products.show');
+
+                Route::match(
+                    ['put', 'patch'],
+                    'products/{product}',
+                    [ProductController::class, 'update']
+                )
+                    ->middleware('permission:products.manage')
+                    ->name('products.update');
 
 
                 /*
