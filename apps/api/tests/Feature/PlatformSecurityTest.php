@@ -5,9 +5,12 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\Payment;
 use App\Models\Plan;
+use App\Models\Role;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Payments\PaymentService;
+use App\Services\Payments\WaveBalanceService;
+use Database\Seeders\RbacSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -20,6 +23,19 @@ class PlatformSecurityTest extends TestCase
     {
         $user = User::factory()->create();
         $organization->users()->attach($user->id, ['role' => $role]);
+
+        return $user;
+    }
+
+    private function organizationAdmin(Organization $organization): User
+    {
+        $this->seed(RbacSeeder::class);
+        $user = $this->member($organization);
+        $role = Role::query()->where('slug', 'admin')->firstOrFail();
+        $user->organizationRoleAssignments()->create([
+            'organization_id' => $organization->id,
+            'role_id' => $role->id,
+        ]);
 
         return $user;
     }
@@ -62,6 +78,87 @@ class PlatformSecurityTest extends TestCase
         $this->authenticate($user, $organization);
 
         $this->postJson('/api/v1/plans', [])->assertForbidden();
+    }
+
+    public function test_platform_admin_can_manage_plans(): void
+    {
+        $admin = User::factory()->platformAdmin()->create();
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/plans', [
+            'name' => 'Plan plateforme',
+            'price_monthly' => 1000,
+            'currency' => 'XOF',
+        ])->assertCreated();
+
+        $planId = $created->json('plan.id');
+        $this->putJson("/api/v1/plans/{$planId}", ['name' => 'Plan modifié'])
+            ->assertOk();
+        $this->deleteJson("/api/v1/plans/{$planId}")->assertOk();
+    }
+
+    public function test_organization_rbac_admin_is_not_a_platform_admin(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = $this->organizationAdmin($organization);
+        $subscription = $this->subscription($organization);
+        $payment = $this->payment($subscription);
+        $this->authenticate($admin, $organization);
+
+        $this->postJson('/api/v1/plans', [])->assertForbidden();
+        $this->getJson('/api/v1/payments/wave/balance')->assertForbidden();
+        $this->postJson("/api/v1/subscriptions/{$subscription->id}/activate")->assertForbidden();
+        $this->postJson("/api/v1/payments/{$payment->id}/confirm")->assertForbidden();
+    }
+
+    public function test_platform_admin_can_access_mocked_wave_balance(): void
+    {
+        $service = \Mockery::mock(WaveBalanceService::class);
+        $service->shouldReceive('getBalance')->once()->andReturn(['balance' => 12345]);
+        $this->app->instance(WaveBalanceService::class, $service);
+
+        Sanctum::actingAs(User::factory()->platformAdmin()->create());
+
+        $this->getJson('/api/v1/payments/wave/balance')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.balance', 12345);
+    }
+
+    public function test_platform_admin_can_activate_and_confirm_with_matching_context(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->platformAdmin()->create();
+        $organization->users()->attach($admin->id, ['role' => 'member']);
+        $subscription = $this->subscription($organization);
+        $payment = $this->payment($subscription);
+        $this->authenticate($admin, $organization);
+
+        $this->postJson("/api/v1/subscriptions/{$subscription->id}/activate")
+            ->assertOk();
+        $this->postJson("/api/v1/payments/{$payment->id}/confirm")
+            ->assertOk();
+
+        $this->assertDatabaseHas('subscriptions', ['id' => $subscription->id, 'status' => 'active']);
+        $this->assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'paid']);
+    }
+
+    public function test_platform_admin_cannot_mutate_another_organization_context(): void
+    {
+        $organization = Organization::factory()->create();
+        $otherOrganization = Organization::factory()->create();
+        $admin = User::factory()->platformAdmin()->create();
+        $organization->users()->attach($admin->id, ['role' => 'member']);
+        $otherOrganization->users()->attach($admin->id, ['role' => 'member']);
+        $subscription = $this->subscription($otherOrganization);
+        $payment = $this->payment($subscription);
+        $this->authenticate($admin, $organization);
+
+        $this->postJson("/api/v1/subscriptions/{$subscription->id}/activate")->assertForbidden();
+        $this->postJson("/api/v1/payments/{$payment->id}/confirm")->assertForbidden();
+
+        $this->assertDatabaseHas('subscriptions', ['id' => $subscription->id, 'status' => 'past_due']);
+        $this->assertDatabaseHas('payments', ['id' => $payment->id, 'status' => 'pending']);
     }
 
     public function test_normal_user_cannot_update_a_plan(): void

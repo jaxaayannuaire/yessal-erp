@@ -24,7 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'subscription' => EnsureSubscriptionActive::class,
             'entitlement' => EnsureEntitlement::class,
 			'organization.context' => ResolveOrganizationContext::class,
-			'permission' => \App\Http\Middleware\CheckPermission::class,
+            'permission' => \App\Http\Middleware\CheckPermission::class,
+            'platform.admin' => \App\Http\Middleware\EnsurePlatformAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

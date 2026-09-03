@@ -162,8 +162,6 @@ class SubscriptionController extends Controller
     ) {
         $this->ensureOwnership($request, $subscription);
 
-        abort(403, 'L’activation d’une souscription est réservée à la plateforme.');
-
         if ($subscription->status === 'cancelled') {
             return response()->json([
                 'message' => 'Une souscription annulée ne peut pas être activée.',

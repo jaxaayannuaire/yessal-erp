@@ -423,7 +423,12 @@ Route::prefix('v1')->group(function () {
         Route::apiResource(
             'plans',
             PlanController::class
-        );
+        )->only(['index', 'show']);
+
+        Route::apiResource(
+            'plans',
+            PlanController::class
+        )->except(['index', 'show'])->middleware('platform.admin');
 
 
         /*
@@ -442,7 +447,7 @@ Route::prefix('v1')->group(function () {
             Route::post(
                 'subscriptions/{subscription}/activate',
                 [SubscriptionController::class, 'activate']
-            );
+            )->middleware('platform.admin');
 
             Route::post(
                 'subscriptions/{subscription}/cancel',
@@ -471,7 +476,7 @@ Route::prefix('v1')->group(function () {
             Route::post(
                 'payments/{payment}/confirm',
                 [PaymentController::class, 'confirm']
-            );
+            )->middleware('platform.admin');
 
             Route::post(
                 'payments/{payment}/initiate',
@@ -487,7 +492,7 @@ Route::prefix('v1')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware('auth:sanctum')->get(
+    Route::middleware(['auth:sanctum', 'platform.admin'])->get(
         'payments/wave/balance',
         [PaymentController::class, 'waveBalance']
     );
