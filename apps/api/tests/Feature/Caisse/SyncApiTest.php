@@ -9,8 +9,11 @@ use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\Caisse\SyncService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PDOException;
 use Tests\TestCase;
 
 class SyncApiTest extends TestCase
@@ -151,6 +154,118 @@ class SyncApiTest extends TestCase
             ->assertJsonPath('accepted.0.duplicate', true);
 
         $this->assertDatabaseCount('sync_events', 1);
+    }
+
+    public function test_same_event_uuid_in_another_organization_is_isolated(): void
+    {
+        [$user, $organization] = $this->context();
+        $otherOrganization = Organization::factory()->create();
+        $otherOrganization->users()->attach($user->id, ['role' => 'owner']);
+
+        $plan = Plan::factory()->withCaisseEntitlement()->create(['is_active' => true]);
+        Subscription::factory()->create([
+            'organization_id' => $otherOrganization->id,
+            'plan_id' => $plan->id,
+            'status' => 'active',
+            'starts_at' => now()->subMinute(),
+            'ends_at' => now()->addMonth(),
+        ]);
+
+        $device = $this->device($organization);
+        $otherDevice = $this->device($otherOrganization);
+        $uuid = (string) Str::uuid();
+
+        $first = $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization->id))
+            ->postJson('/api/v1/caisse/sync/push', [
+                'device_id' => $device->id,
+                'events' => [$this->eventPayload(null, $uuid)],
+            ]);
+
+        $second = $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($otherOrganization->id))
+            ->postJson('/api/v1/caisse/sync/push', [
+                'device_id' => $otherDevice->id,
+                'events' => [$this->eventPayload(null, $uuid)],
+            ]);
+
+        $first->assertOk()->assertJsonPath('accepted.0.duplicate', false);
+        $second->assertOk()->assertJsonPath('accepted.0.duplicate', false);
+
+        $this->assertDatabaseCount('sync_events', 2);
+        $this->assertDatabaseHas('sync_events', [
+            'organization_id' => $organization->id,
+            'device_id' => $device->id,
+            'event_uuid' => $uuid,
+        ]);
+        $this->assertDatabaseHas('sync_events', [
+            'organization_id' => $otherOrganization->id,
+            'device_id' => $otherDevice->id,
+            'event_uuid' => $uuid,
+        ]);
+    }
+
+    public function test_unique_constraint_collision_returns_the_existing_event_as_duplicate(): void
+    {
+        [$user, $organization] = $this->context();
+        $device = $this->device($organization);
+        $event = $this->eventPayload();
+
+        $existing = SyncEvent::create([
+            'organization_id' => $organization->id,
+            'shop_id' => null,
+            'device_id' => $device->id,
+            'event_uuid' => $event['event_uuid'],
+            'entity_type' => $event['entity_type'],
+            'entity_id' => $event['entity_id'],
+            'action' => $event['action'],
+            'payload' => $event['payload'],
+            'status' => 'pending',
+            'created_at' => $event['occurred_at'],
+        ]);
+
+        $service = new class extends SyncService {
+            private int $findAttempts = 0;
+
+            protected function findSyncEvent(
+                int $organizationId,
+                string $eventUuid
+            ): ?SyncEvent {
+                $this->findAttempts++;
+
+                if ($this->findAttempts === 1) {
+                    return null;
+                }
+
+                return parent::findSyncEvent($organizationId, $eventUuid);
+            }
+
+            protected function createSyncEvent(array $attributes): SyncEvent
+            {
+                throw new QueryException(
+                    'testing',
+                    'insert into sync_events',
+                    [],
+                    new PDOException('duplicate key', '23505')
+                );
+            }
+        };
+
+        $result = $service->push(
+            $organization->id,
+            $device->id,
+            [$event]
+        );
+
+        $this->assertCount(1, $result['accepted']);
+        $this->assertTrue($result['accepted'][0]['duplicate']);
+        $this->assertSame($existing->id, $result['accepted'][0]['id']);
+        $this->assertDatabaseCount('sync_events', 1);
+        $this->assertDatabaseHas('sync_events', [
+            'organization_id' => $organization->id,
+            'device_id' => $device->id,
+            'event_uuid' => $event['event_uuid'],
+        ]);
     }
 
     public function test_multiple_events_can_be_pushed(): void

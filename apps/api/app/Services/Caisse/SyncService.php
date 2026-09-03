@@ -6,6 +6,7 @@ use App\Models\Caisse\Device;
 use App\Models\Caisse\Shop;
 use App\Models\Caisse\SyncEvent;
 use App\Models\Caisse\DeviceActivityLog;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -83,10 +84,10 @@ class SyncService
                         }
                     }
 
-                    $existing = SyncEvent::query()
-                        ->where('organization_id', $organizationId)
-                        ->where('event_uuid', $event['event_uuid'])
-                        ->first();
+                    $existing = $this->findSyncEvent(
+                        $organizationId,
+                        $event['event_uuid']
+                    );
 
                     if ($existing) {
                         return [
@@ -96,7 +97,7 @@ class SyncService
                         ];
                     }
 
-                    $created = SyncEvent::create([
+                    $created = $this->createSyncEvent([
                         'organization_id' => $organizationId,
                         'shop_id' => $shopId,
                         'device_id' => $device->id,
@@ -117,6 +118,25 @@ class SyncService
                 });
 
                 $accepted[] = $result;
+            } catch (QueryException $e) {
+                if (! $this->isUniqueConstraintViolation($e)) {
+                    throw $e;
+                }
+
+                $existing = $this->findSyncEvent(
+                    $organizationId,
+                    $event['event_uuid']
+                );
+
+                if (! $existing) {
+                    throw $e;
+                }
+
+                $accepted[] = [
+                    'type' => 'accepted',
+                    'id' => $existing->id,
+                    'duplicate' => true,
+                ];
             } catch (ValidationException $e) {
                 $rejected[] = [
                     'event_uuid' => $event['event_uuid'] ?? null,
@@ -158,6 +178,26 @@ class SyncService
             'rejected',
             'conflicts'
         );
+    }
+
+    protected function createSyncEvent(array $attributes): SyncEvent
+    {
+        return SyncEvent::create($attributes);
+    }
+
+    protected function findSyncEvent(
+        int $organizationId,
+        string $eventUuid
+    ): ?SyncEvent {
+        return SyncEvent::query()
+            ->where('organization_id', $organizationId)
+            ->where('event_uuid', $eventUuid)
+            ->first();
+    }
+
+    private function isUniqueConstraintViolation(QueryException $exception): bool
+    {
+        return in_array((string) $exception->getCode(), ['19', '23000', '23505'], true);
     }
 
     private function logActivity(
