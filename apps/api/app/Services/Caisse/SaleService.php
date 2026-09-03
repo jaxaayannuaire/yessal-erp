@@ -188,6 +188,49 @@ class SaleService
         });
     }
 
+    /**
+     * Annule une vente finalisée et restaure les sorties de stock associées.
+     */
+    public function cancel(Sale $sale, ?int $cancelledBy = null): Sale
+    {
+        return DB::transaction(function () use ($sale, $cancelledBy) {
+            $sale = Sale::query()
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
+
+            if ($sale->status === 'cancelled') {
+                throw ValidationException::withMessages([
+                    'sale' => ['Cette vente est déjà annulée.'],
+                ]);
+            }
+
+            if ($sale->status !== 'finalized') {
+                throw ValidationException::withMessages([
+                    'sale' => ['Seule une vente finalisée peut être annulée.'],
+                ]);
+            }
+
+            $movements = StockMovement::query()
+                ->where('organization_id', $sale->organization_id)
+                ->where('reference_type', 'sale')
+                ->where('reference_id', (string) $sale->id)
+                ->where('type', 'sale_out')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($movements as $movement) {
+                $this->restoreStockMovement($sale, $movement, $cancelledBy);
+            }
+
+            $sale->update([
+                'status' => 'cancelled',
+            ]);
+
+            return $sale->refresh();
+        });
+    }
+
     private function decrementStockForLine(Sale $sale, SaleLine $line): void
     {
         $hasProduct = $line->product_id !== null;
@@ -274,6 +317,61 @@ class SaleService
             'reference_id' => (string) $sale->id,
             'reason' => 'Finalisation de vente.',
             'created_by' => $sale->cashier_user_id,
+            'created_at' => now(),
+        ]);
+    }
+
+    private function restoreStockMovement(
+        Sale $sale,
+        StockMovement $movement,
+        ?int $cancelledBy
+    ): void {
+        $hasProduct = $movement->product_id !== null;
+        $hasVariant = $movement->product_variant_id !== null;
+
+        if ($hasProduct === $hasVariant) {
+            throw ValidationException::withMessages([
+                'sale' => ['Le mouvement de stock de la vente est invalide.'],
+            ]);
+        }
+
+        $levelQuery = StockLevel::query()
+            ->where('stock_location_id', $movement->stock_location_id)
+            ->whereHas('location', fn ($query) => $query
+                ->where('organization_id', $sale->organization_id)
+                ->where('shop_id', $sale->shop_id))
+            ->lockForUpdate();
+
+        if ($hasProduct) {
+            $levelQuery->where('product_id', $movement->product_id);
+        } else {
+            $levelQuery->where('product_variant_id', $movement->product_variant_id);
+        }
+
+        $level = $levelQuery->first();
+
+        if (! $level) {
+            throw ValidationException::withMessages([
+                'sale' => ['Niveau de stock introuvable pour annuler cette vente.'],
+            ]);
+        }
+
+        $level->update([
+            'quantity' => (float) $level->quantity + (float) $movement->quantity,
+        ]);
+
+        StockMovement::create([
+            'organization_id' => $sale->organization_id,
+            'stock_location_id' => $movement->stock_location_id,
+            'product_id' => $movement->product_id,
+            'product_variant_id' => $movement->product_variant_id,
+            'type' => 'sale_cancel_in',
+            'quantity' => $movement->quantity,
+            'unit_cost' => $movement->unit_cost,
+            'reference_type' => 'sale_cancel',
+            'reference_id' => (string) $sale->id,
+            'reason' => 'Annulation de vente.',
+            'created_by' => $cancelledBy ?? $sale->cashier_user_id,
             'created_at' => now(),
         ]);
     }

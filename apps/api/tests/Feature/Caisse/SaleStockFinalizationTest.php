@@ -7,6 +7,7 @@ use App\Models\Caisse\Product;
 use App\Models\Caisse\ProductVariant;
 use App\Models\Caisse\Sale;
 use App\Models\Caisse\SaleLine;
+use App\Models\Caisse\SalePayment;
 use App\Models\Caisse\Shop;
 use App\Models\Caisse\StockLevel;
 use App\Models\Caisse\StockLocation;
@@ -15,8 +16,10 @@ use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\Caisse\SaleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class SaleStockFinalizationTest extends TestCase
@@ -262,6 +265,22 @@ class SaleStockFinalizationTest extends TestCase
             'product_variant_id' => $variant->id,
             'type' => 'sale_out',
         ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('sale.status', 'cancelled');
+
+        $this->assertDatabaseHas('stock_levels', [
+            'product_variant_id' => $variant->id,
+            'quantity' => 6,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => null,
+            'product_variant_id' => $variant->id,
+            'type' => 'sale_cancel_in',
+        ]);
     }
 
     public function test_sale_cannot_consume_a_product_or_stock_location_from_another_organization(): void
@@ -356,6 +375,220 @@ class SaleStockFinalizationTest extends TestCase
             'stock_location_id' => $location->id,
             'product_id' => $product['id'],
             'quantity' => 1,
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale['id']}/cancel")
+            ->assertOk()
+            ->assertJsonPath('sale.status', 'cancelled');
+
+        $this->assertDatabaseHas('stock_levels', [
+            'stock_location_id' => $location->id,
+            'product_id' => $product['id'],
+            'quantity' => 3,
+        ]);
+    }
+
+    public function test_cancellation_restores_each_line_in_its_original_location(): void
+    {
+        [$user, $organization] = $this->context();
+        [$shop, , , $location, $sale] = $this->saleContext($organization, $user);
+        $secondLocation = StockLocation::factory()->create([
+            'organization_id' => $organization->id,
+            'shop_id' => $shop->id,
+            'status' => 'active',
+        ]);
+        $firstProduct = $this->productWithStock($shop, $location, 8);
+        $secondProduct = $this->productWithStock($shop, $secondLocation, 6);
+        $this->line($sale, $firstProduct, 3);
+        $this->line($sale, $secondProduct, 2);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/finalize")
+            ->assertOk();
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertOk();
+
+        $this->assertDatabaseHas('stock_levels', [
+            'stock_location_id' => $location->id,
+            'product_id' => $firstProduct->id,
+            'quantity' => 8,
+        ]);
+        $this->assertDatabaseHas('stock_levels', [
+            'stock_location_id' => $secondLocation->id,
+            'product_id' => $secondProduct->id,
+            'quantity' => 6,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'stock_location_id' => $location->id,
+            'product_id' => $firstProduct->id,
+            'type' => 'sale_cancel_in',
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'stock_location_id' => $secondLocation->id,
+            'product_id' => $secondProduct->id,
+            'type' => 'sale_cancel_in',
+        ]);
+    }
+
+    public function test_second_cancel_does_not_restore_stock_or_create_more_movements(): void
+    {
+        [$user, $organization] = $this->context();
+        [$shop, , , $location, $sale] = $this->saleContext($organization, $user);
+        $product = $this->productWithStock($shop, $location, 5);
+        $this->line($sale, $product, 2);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/finalize")
+            ->assertOk();
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertOk();
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sale');
+
+        $this->assertDatabaseHas('stock_levels', [
+            'product_id' => $product->id,
+            'quantity' => 5,
+        ]);
+        $this->assertDatabaseCount('stock_movements', 2);
+    }
+
+    public function test_cancel_service_retry_does_not_restore_stock_twice(): void
+    {
+        [$user, $organization] = $this->context();
+        [$shop, , , $location, $sale] = $this->saleContext($organization, $user);
+        $product = $this->productWithStock($shop, $location, 4);
+        $this->line($sale, $product, 1);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/finalize")
+            ->assertOk();
+
+        app(SaleService::class)->cancel($sale, $user->id);
+
+        $this->expectException(ValidationException::class);
+
+        app(SaleService::class)->cancel($sale, $user->id);
+    }
+
+    public function test_cancellation_rolls_back_if_one_original_stock_level_is_missing(): void
+    {
+        [$user, $organization] = $this->context();
+        [$shop, , , $location, $sale] = $this->saleContext($organization, $user);
+        $firstProduct = $this->productWithStock($shop, $location, 8);
+        $secondProduct = $this->productWithStock($shop, $location, 6);
+        $this->line($sale, $firstProduct, 2);
+        $this->line($sale, $secondProduct, 2);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/finalize")
+            ->assertOk();
+
+        StockLevel::query()
+            ->where('stock_location_id', $location->id)
+            ->where('product_id', $secondProduct->id)
+            ->firstOrFail()
+            ->delete();
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sale');
+
+        $this->assertSame('finalized', $sale->fresh()->status);
+        $this->assertDatabaseHas('stock_levels', [
+            'stock_location_id' => $location->id,
+            'product_id' => $firstProduct->id,
+            'quantity' => 6,
+        ]);
+        $this->assertDatabaseCount('stock_movements', 2);
+    }
+
+    public function test_other_organization_cannot_cancel_a_sale_or_restore_its_stock(): void
+    {
+        [$user, $organization] = $this->context();
+        $otherUser = User::factory()->create();
+        $otherOrganization = Organization::factory()->create();
+        $otherOrganization->users()->attach($otherUser->id, ['role' => 'owner']);
+        $plan = Plan::factory()->withCaisseEntitlement()->create();
+        Subscription::factory()->create([
+            'organization_id' => $otherOrganization->id,
+            'plan_id' => $plan->id,
+            'status' => 'active',
+            'starts_at' => now()->subMinute(),
+            'ends_at' => now()->addMonth(),
+        ]);
+        [$shop, , , $location, $sale] = $this->saleContext(
+            $otherOrganization,
+            $otherUser
+        );
+        $product = $this->productWithStock($shop, $location, 4);
+        $this->line($sale, $product, 1);
+
+        $this->actingAs($otherUser, 'sanctum')
+            ->withHeaders($this->headers($otherOrganization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/finalize")
+            ->assertOk();
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertForbidden();
+
+        $this->assertSame('finalized', $sale->fresh()->status);
+        $this->assertDatabaseHas('stock_levels', [
+            'stock_location_id' => $location->id,
+            'product_id' => $product->id,
+            'quantity' => 3,
+        ]);
+    }
+
+    public function test_cancellation_keeps_existing_payments_without_refunding_them(): void
+    {
+        [$user, $organization] = $this->context();
+        [$shop, , , $location, $sale] = $this->saleContext($organization, $user);
+        $product = $this->productWithStock($shop, $location, 3);
+        $this->line($sale, $product, 1);
+        $payment = SalePayment::create([
+            'sale_id' => $sale->id,
+            'payment_method' => 'cash',
+            'provider' => 'cash',
+            'amount' => 10000,
+            'change_amount' => 0,
+            'status' => 'confirmed',
+            'confirmed_at' => now(),
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/finalize")
+            ->assertOk();
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertOk();
+
+        $this->assertDatabaseHas('sale_payments', [
+            'id' => $payment->id,
+            'sale_id' => $sale->id,
+            'status' => 'confirmed',
         ]);
     }
 }

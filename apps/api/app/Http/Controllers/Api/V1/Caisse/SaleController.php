@@ -235,4 +235,20 @@ class SaleController extends Controller
             ]),
         ]);
     }
+
+    public function cancel(Request $request, Sale $sale): JsonResponse
+    {
+        $organizationId = (int) $request->attributes->get('organization_id');
+
+        if ((int) $sale->organization_id !== $organizationId) {
+            abort(403, 'Vente inaccessible.');
+        }
+
+        $sale = $this->saleService->cancel($sale, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'sale' => $sale->load(['lines', 'payments']),
+        ]);
+    }
 }

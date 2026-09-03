@@ -352,6 +352,13 @@ Route::prefix('v1')->group(function () {
                     ->middleware('permission:sales.finalize')
                     ->name('sales.finalize');
 
+                Route::post(
+                    'sales/{sale}/cancel',
+                    [SaleController::class, 'cancel']
+                )
+                    ->middleware('permission:sales.cancel')
+                    ->name('sales.cancel');
+
 
                 /*
                 |--------------------------------------------------------------------------

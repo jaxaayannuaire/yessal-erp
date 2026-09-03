@@ -6,6 +6,22 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-03 — Annulation des ventes et restauration du stock
+
+### Annulation contrôlée
+
+- Ajout de `POST /api/v1/caisse/sales/{sale}/cancel`, protégé par `sales.cancel`.
+- Une vente finalisée peut passer à `cancelled` ; l'opération restaure exactement les sorties `sale_out` dans leurs emplacements de stock d'origine.
+- Les restaurations créent des mouvements explicites `sale_cancel_in`, pour les produits comme pour les variantes.
+
+### Cohérence et périmètre
+
+- Vente, niveaux de stock et mouvements inverses sont traités dans une transaction unique ; les retries ne restaurent jamais deux fois le stock.
+- Les paiements existants sont conservés. Les remboursements financiers et avoirs restent hors périmètre.
+- Validation : 346 tests, 941 assertions, 0 échec.
+
+---
+
 ## 2026-09-03 — Intégration ventes et stock
 
 ### Finalisation des ventes

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Caisse;
 
 use App\Models\Caisse\Device;
+use App\Models\Caisse\Sale;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Role;
@@ -196,5 +197,36 @@ class CaisseRbacApiTest extends TestCase
             ->withHeaders($this->headers($organization))
             ->getJson('/api/v1/caisse/devices')
             ->assertOk();
+    }
+
+    public function test_manager_with_sales_cancel_can_cancel_a_finalized_sale(): void
+    {
+        $organization = Organization::factory()->create();
+        $manager = $this->userWithRole($organization, 'manager');
+        $sale = Sale::factory()->create([
+            'organization_id' => $organization->id,
+            'status' => 'finalized',
+        ]);
+
+        $this->actingAs($manager, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('sale.status', 'cancelled');
+    }
+
+    public function test_cashier_without_sales_cancel_is_forbidden_from_cancelling_a_sale(): void
+    {
+        $organization = Organization::factory()->create();
+        $cashier = $this->userWithRole($organization, 'cashier');
+        $sale = Sale::factory()->create([
+            'organization_id' => $organization->id,
+            'status' => 'finalized',
+        ]);
+
+        $this->actingAs($cashier, 'sanctum')
+            ->withHeaders($this->headers($organization))
+            ->postJson("/api/v1/caisse/sales/{$sale->id}/cancel")
+            ->assertForbidden();
     }
 }
