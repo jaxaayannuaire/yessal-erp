@@ -7,7 +7,9 @@ use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\EntitlementController;
 use App\Http\Controllers\Api\V1\Caisse\ShopController;
+use App\Http\Controllers\Api\V1\Caisse\CategoryController;
 use App\Http\Controllers\Api\V1\Caisse\ProductController;
+use App\Http\Controllers\Api\V1\Caisse\ProductVariantController;
 use App\Http\Controllers\Api\V1\Caisse\TerminalController;
 use App\Http\Controllers\Api\V1\Caisse\DeviceController;
 use App\Http\Controllers\Api\V1\Caisse\CashSessionController;
@@ -156,6 +158,41 @@ Route::prefix('v1')->group(function () {
 
                 /*
                 |--------------------------------------------------------------------------
+                | Catégories
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'categories',
+                    [CategoryController::class, 'index']
+                )
+                    ->middleware('permission:products.view')
+                    ->name('categories.index');
+
+                Route::post(
+                    'categories',
+                    [CategoryController::class, 'store']
+                )
+                    ->middleware('permission:products.manage')
+                    ->name('categories.store');
+
+                Route::get(
+                    'categories/{category}',
+                    [CategoryController::class, 'show']
+                )
+                    ->middleware('permission:products.view')
+                    ->name('categories.show');
+
+                Route::match(
+                    ['put', 'patch'],
+                    'categories/{category}',
+                    [CategoryController::class, 'update']
+                )
+                    ->middleware('permission:products.manage')
+                    ->name('categories.update');
+
+                /*
+                |--------------------------------------------------------------------------
                 | Produits
                 |--------------------------------------------------------------------------
                 */
@@ -188,6 +225,35 @@ Route::prefix('v1')->group(function () {
                 )
                     ->middleware('permission:products.manage')
                     ->name('products.update');
+
+                Route::get(
+                    'products/{product}/variants',
+                    [ProductVariantController::class, 'index']
+                )
+                    ->middleware('permission:products.view')
+                    ->name('products.variants.index');
+
+                Route::post(
+                    'products/{product}/variants',
+                    [ProductVariantController::class, 'store']
+                )
+                    ->middleware('permission:products.manage')
+                    ->name('products.variants.store');
+
+                Route::get(
+                    'products/{product}/variants/{variant}',
+                    [ProductVariantController::class, 'show']
+                )
+                    ->middleware('permission:products.view')
+                    ->name('products.variants.show');
+
+                Route::match(
+                    ['put', 'patch'],
+                    'products/{product}/variants/{variant}',
+                    [ProductVariantController::class, 'update']
+                )
+                    ->middleware('permission:products.manage')
+                    ->name('products.variants.update');
 
 
                 /*

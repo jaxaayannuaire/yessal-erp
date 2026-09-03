@@ -6,6 +6,22 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-03 — Catégories et variantes Produits
+
+### API catalogue
+
+- Ajout des API Catégorie et Variante Produit Caisse, protégées par `products.view` en lecture et `products.manage` en écriture.
+- Les catégories et variantes sont strictement isolées par organisation, boutique et produit parent.
+- Les variantes exposent leurs prix et attributs existants ; leur SKU et code-barres sont validés par produit côté API.
+
+### Stock et ventes
+
+- Une variante créée par API peut être approvisionnée par les ajustements de stock, vendue, décrémentée à la finalisation et restaurée à l'annulation.
+- Aucun stock initial n'est créé automatiquement avec une variante.
+- Validation : 353 tests, 985 assertions, 0 échec.
+
+---
+
 ## 2026-09-03 — Annulation des ventes et restauration du stock
 
 ### Annulation contrôlée
