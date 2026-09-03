@@ -116,11 +116,13 @@ class SubscriptionController extends Controller
     ) {
         $this->ensureOwnership($request, $subscription);
 
+        abort_if(
+            $request->has('status'),
+            403,
+            'Le statut d’une souscription est géré par la plateforme.'
+        );
+
         $validated = $request->validate([
-            'status' => [
-                'sometimes',
-                'in:pending,active,cancelled,expired,past_due',
-            ],
             'billing_cycle' => [
                 'sometimes',
                 'in:monthly,yearly',
@@ -159,6 +161,8 @@ class SubscriptionController extends Controller
         Subscription $subscription
     ) {
         $this->ensureOwnership($request, $subscription);
+
+        abort(403, 'L’activation d’une souscription est réservée à la plateforme.');
 
         if ($subscription->status === 'cancelled') {
             return response()->json([

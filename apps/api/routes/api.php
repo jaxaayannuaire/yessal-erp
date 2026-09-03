@@ -483,7 +483,7 @@ Route::prefix('v1')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::get(
+    Route::middleware('auth:sanctum')->get(
         'payments/wave/balance',
         [PaymentController::class, 'waveBalance']
     );

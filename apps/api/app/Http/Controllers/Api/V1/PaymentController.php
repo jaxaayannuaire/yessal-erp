@@ -121,6 +121,9 @@ class PaymentController extends Controller
         PaymentService $paymentService
     ) {
         $this->ensureOwnership($request, $payment);
+
+        abort(403, 'La confirmation d’un paiement est réservée à la plateforme.');
+
         $validated = $request->validate([
             'provider_transaction_id' => [
                 'nullable',
@@ -430,6 +433,8 @@ class PaymentController extends Controller
     public function waveBalance(
         \App\Services\Payments\WaveBalanceService $waveBalanceService
     ) {
+        abort(403, 'La consultation du solde Wave est réservée à la plateforme.');
+
         return response()->json([
             'success' => true,
             'data' => $waveBalanceService->getBalance(),

@@ -30,6 +30,8 @@ class PlanController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort(403, 'La gestion des plans est réservée à la plateforme.');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:plans,slug'],
@@ -57,6 +59,8 @@ class PlanController extends Controller
 
     public function update(Request $request, Plan $plan): JsonResponse
     {
+        abort(403, 'La gestion des plans est réservée à la plateforme.');
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'slug' => ['sometimes', 'string', 'max:255', 'unique:plans,slug,' . $plan->id],
@@ -81,6 +85,8 @@ class PlanController extends Controller
 
     public function destroy(Plan $plan): JsonResponse
     {
+        abort(403, 'La gestion des plans est réservée à la plateforme.');
+
         $plan->delete();
 
         return response()->json([
