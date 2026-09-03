@@ -110,6 +110,12 @@ class RbacSeeder extends Seeder
                 // Caisse
                 [
                     'module' => 'cash',
+                    'name' => 'Voir les sessions de caisse',
+                    'slug' => 'cash.view',
+                    'description' => 'Consulter les sessions de caisse.',
+                ],
+                [
+                    'module' => 'cash',
                     'name' => 'Ouvrir une caisse',
                     'slug' => 'cash.open',
                     'description' => 'Ouvrir une session de caisse.',
@@ -125,6 +131,28 @@ class RbacSeeder extends Seeder
                     'name' => 'Voir les mouvements de caisse',
                     'slug' => 'cash.movements.view',
                     'description' => 'Consulter les mouvements de caisse.',
+                ],
+
+                // Appareils
+                [
+                    'module' => 'devices',
+                    'name' => 'Voir les appareils',
+                    'slug' => 'devices.view',
+                    'description' => 'Consulter les appareils de caisse.',
+                ],
+                [
+                    'module' => 'devices',
+                    'name' => 'Gérer les appareils',
+                    'slug' => 'devices.manage',
+                    'description' => 'Créer, modifier, activer et révoquer les appareils.',
+                ],
+
+                // Synchronisation
+                [
+                    'module' => 'sync',
+                    'name' => 'Synchroniser les données',
+                    'slug' => 'sync.push',
+                    'description' => 'Envoyer les événements de synchronisation.',
                 ],
 
                 // Boutiques
@@ -201,7 +229,11 @@ class RbacSeeder extends Seeder
                     'customers.manage',
                     'cash.open',
                     'cash.close',
+                    'cash.view',
                     'cash.movements.view',
+                    'devices.view',
+                    'devices.manage',
+                    'sync.push',
                     'reports.view',
                     'shops.view',
                     'terminals.view',
@@ -221,7 +253,10 @@ class RbacSeeder extends Seeder
                     'customers.view',
                     'cash.open',
                     'cash.close',
+                    'cash.view',
                     'cash.movements.view',
+                    'devices.view',
+                    'sync.push',
                     'terminals.view',
                 ]
             );
