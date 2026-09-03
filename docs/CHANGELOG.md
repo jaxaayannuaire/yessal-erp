@@ -6,6 +6,25 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-03 — Consolidation des quotas SaaS
+
+### Limites et usages
+
+- Ajout de `max_shops` aux plans, en complément de `max_users`, `max_products` et `max_devices`.
+- L'endpoint des entitlements expose les limites et usages `users`, `products`, `devices` et `shops`.
+- Le calcul des produits compte désormais les produits réels de l'organisation ; les compteurs restent isolés par tenant.
+
+### Application des quotas
+
+- La création de boutiques applique `max_shops` et refuse les dépassements.
+- Les quotas produits et utilisateurs sont exposés et calculés ; leur application attend une route dédiée de création de produit ou d'ajout de membre.
+
+### Tests
+
+Validation : 318 tests, 810 assertions, 0 échec.
+
+---
+
 ## 2026-09-03 — Sécurisation RBAC, abonnements, Wave, Sync et administration plateforme
 
 ### RBAC Caisse

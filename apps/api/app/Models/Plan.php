@@ -26,6 +26,7 @@ class Plan extends Model
 		'max_users',
 		'max_products',
 		'max_devices',
+        'max_shops',
     ];
 
     protected function casts(): array

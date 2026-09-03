@@ -3,6 +3,8 @@
 namespace App\Services\Entitlements;
 
 use App\Models\Caisse\Device;
+use App\Models\Caisse\Product;
+use App\Models\Caisse\Shop;
 use App\Models\Organization;
 
 class QuotaService
@@ -22,7 +24,11 @@ class QuotaService
         return match ($resource) {
             'users' => $organization->users()->count(),
 
-            'products' => 0,
+            'products' => Product::query()
+                ->whereHas('shop', fn ($query) => $query->where('organization_id', $organization->id))
+                ->count(),
+
+            'shops' => Shop::query()->where('organization_id', $organization->id)->count(),
 
             'devices' => Device::query()
                 ->where('organization_id', $organization->id)

@@ -3,6 +3,9 @@
 namespace Tests\Feature\Caisse;
 
 use App\Models\Organization;
+use App\Models\Caisse\Device;
+use App\Models\Caisse\Product;
+use App\Models\Caisse\Shop;
 use App\Models\Plan;
 use App\Models\Role;
 use App\Models\Subscription;
@@ -216,5 +219,26 @@ class CaisseSubscriptionEntitlementApiTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('organization.id', $organizationB->id)
             ->assertJsonMissing(['slug' => 'pos.sell']);
+    }
+
+    public function test_entitlement_endpoint_exposes_tenant_scoped_quota_usage(): void
+    {
+        $organization = $this->organizationWithSubscription();
+        $user = $this->member($organization);
+        $organization->users()->attach(User::factory()->create()->id, ['role' => 'member']);
+        $shop = Shop::factory()->create(['organization_id' => $organization->id]);
+        Product::factory()->create(['shop_id' => $shop->id]);
+        Device::factory()->create(['organization_id' => $organization->id, 'status' => 'active']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->withHeaders(['X-Organization-Id' => (string) $organization->id])
+            ->getJson('/api/v1/organization/entitlements');
+
+        $response->assertOk()
+            ->assertJsonPath('usage.users', 2)
+            ->assertJsonPath('usage.shops', 1)
+            ->assertJsonPath('usage.products', 1)
+            ->assertJsonPath('usage.devices', 1)
+            ->assertJsonStructure(['limits' => ['max_users', 'max_products', 'max_devices', 'max_shops']]);
     }
 }

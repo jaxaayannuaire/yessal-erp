@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Caisse;
 use App\Http\Controllers\Controller;
 use App\Models\Caisse\Shop;
 use App\Services\Caisse\OrganizationAccessService;
+use App\Services\Entitlements\QuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -12,7 +13,8 @@ use Illuminate\Validation\Rule;
 class ShopController extends Controller
 {
     public function __construct(
-        private OrganizationAccessService $access
+        private OrganizationAccessService $access,
+        private QuotaService $quotaService
     ) {
     }
 
@@ -34,6 +36,10 @@ class ShopController extends Controller
     public function store(Request $request): JsonResponse
     {
         $organization = $request->attributes->get('currentOrganization');
+
+        if (! $this->quotaService->canAdd($organization, 'shops')) {
+            return response()->json(['message' => 'Quota de boutiques atteint.'], 422);
+        }
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],

@@ -23,6 +23,7 @@ class PlanLimitService
             'users' => $subscription->plan->max_users,
             'products' => $subscription->plan->max_products,
 			'devices' => $subscription->plan->max_devices,
+            'shops' => $subscription->plan->max_shops,
             default => null,
         };
     }

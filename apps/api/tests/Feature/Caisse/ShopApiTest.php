@@ -88,6 +88,18 @@ class ShopApiTest extends TestCase
             ->assertJsonCount(2, 'shops');
     }
 
+    public function test_shop_creation_is_refused_when_quota_is_reached(): void
+    {
+        [$user, $organization, $plan] = $this->createOrganizationWithSubscription();
+        $plan->update(['max_shops' => 1]);
+        Shop::factory()->create(['organization_id' => $organization->id]);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeader('X-Organization-Id', $organization->id)
+            ->postJson('/api/v1/caisse/shops', ['name' => 'Trop', 'code' => 'TROP'])
+            ->assertUnprocessable();
+    }
+
     public function test_shop_from_another_organization_is_rejected(): void
     {
         [$user, $organization] = $this->createOrganizationWithSubscription();

@@ -26,6 +26,7 @@ class PlanFactory extends Factory
             'features' => ['pos.sell'],
             'max_users' => 5,
             'max_products' => 1000,
+            'max_shops' => null,
             'is_active' => true,
             'sort_order' => 0,
         ];
