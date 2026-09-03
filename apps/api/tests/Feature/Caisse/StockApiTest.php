@@ -13,10 +13,18 @@ use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Database\Seeders\RbacSeeder;
 
 class StockApiTest extends TestCase
 {
     use RefreshDatabase;
+
+	 protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RbacSeeder::class);
+    }
 
     private function context(): array
     {

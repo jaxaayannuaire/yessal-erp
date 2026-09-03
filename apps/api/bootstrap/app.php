@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureEntitlement;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use App\Http\Middleware\ResolveOrganizationContext;
+use App\Http\Middleware\CheckPermission;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'subscription' => EnsureSubscriptionActive::class,
             'entitlement' => EnsureEntitlement::class,
 			'organization.context' => ResolveOrganizationContext::class,
+			'permission' => \App\Http\Middleware\CheckPermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

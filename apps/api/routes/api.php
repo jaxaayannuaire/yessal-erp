@@ -15,7 +15,6 @@ use App\Http\Controllers\Api\V1\Caisse\PaymentController as CaissePaymentControl
 use App\Http\Controllers\Api\V1\Caisse\StockController;
 use App\Http\Controllers\Api\V1\Caisse\SyncController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
 
 Route::prefix('v1')->group(function () {
 
@@ -42,27 +41,13 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('auth')->group(function () {
 
-        Route::post(
-            '/register',
-            [AuthController::class, 'register']
-        );
-
-        Route::post(
-            '/login',
-            [AuthController::class, 'login']
-        );
+        Route::post('/register', [AuthController::class, 'register']);
+        Route::post('/login', [AuthController::class, 'login']);
 
         Route::middleware('auth:sanctum')->group(function () {
 
-            Route::get(
-                '/me',
-                [AuthController::class, 'me']
-            );
-
-            Route::post(
-                '/logout',
-                [AuthController::class, 'logout']
-            );
+            Route::get('/me', [AuthController::class, 'me']);
+            Route::post('/logout', [AuthController::class, 'logout']);
         });
     });
 
@@ -101,125 +86,288 @@ Route::prefix('v1')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Routes protégées par authentification
+    | Routes protégées
     |--------------------------------------------------------------------------
     */
 
     Route::middleware('auth:sanctum')->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Entitlements
+        |--------------------------------------------------------------------------
+        */
 
         Route::middleware('organization.context')->get(
             '/organization/entitlements',
             [EntitlementController::class, 'index']
         );
 
-        Route::middleware([
-            'organization.context',
-        ])->prefix('caisse')->group(function () {
 
-            Route::apiResource('shops', ShopController::class)
-                ->only([
-                    'index',
-                    'store',
-                    'show',
-                    'update',
-                ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Caisse
+        |--------------------------------------------------------------------------
+        */
 
-            Route::apiResource('terminals', TerminalController::class)
-                ->only([
-                    'index',
-                    'store',
-                    'show',
-                    'update',
-                ]);
+        Route::middleware('organization.context')
+            ->prefix('caisse')
+            ->group(function () {
 
-            Route::apiResource('devices', DeviceController::class)
-                ->only([
-                    'index',
-                    'store',
-                    'show',
-                    'update',
-                ]);
+                /*
+                |--------------------------------------------------------------------------
+                | Boutiques
+                |--------------------------------------------------------------------------
+                */
 
-            Route::get(
-                'devices/{device}/activity',
-                [DeviceController::class, 'activity']
-            )->name('devices.activity');
+                Route::get(
+                    'shops',
+                    [ShopController::class, 'index']
+                )
+                    ->middleware('permission:shops.view')
+                    ->name('shops.index');
 
-            Route::post(
-                'devices/{device}/revoke',
-                [DeviceController::class, 'revoke']
-            )->name('devices.revoke');
+                Route::post(
+                    'shops',
+                    [ShopController::class, 'store']
+                )
+                    ->middleware('permission:shops.manage')
+                    ->name('shops.store');
 
-            Route::post(
-                'devices/{device}/activate',
-                [DeviceController::class, 'activate']
-            )->name('devices.activate');
+                Route::get(
+                    'shops/{shop}',
+                    [ShopController::class, 'show']
+                )
+                    ->middleware('permission:shops.view')
+                    ->name('shops.show');
 
-            Route::get(
-                'cash-sessions',
-                [CashSessionController::class, 'index']
-            )->name('cash-sessions.index');
+                Route::match(
+                    ['put', 'patch'],
+                    'shops/{shop}',
+                    [ShopController::class, 'update']
+                )
+                    ->middleware('permission:shops.manage')
+                    ->name('shops.update');
 
-            Route::post(
-                'cash-sessions/open',
-                [CashSessionController::class, 'store']
-            )->name('cash-sessions.open');
 
-            Route::get(
-                'cash-sessions/{cashSession}',
-                [CashSessionController::class, 'show']
-            )->name('cash-sessions.show');
+                /*
+                |--------------------------------------------------------------------------
+                | Terminaux
+                |--------------------------------------------------------------------------
+                */
 
-            Route::post(
-                'cash-sessions/{cashSession}/close',
-                [CashSessionController::class, 'close']
-            )->name('cash-sessions.close');
+                Route::get(
+                    'terminals',
+                    [TerminalController::class, 'index']
+                )
+                    ->middleware('permission:terminals.view')
+                    ->name('terminals.index');
 
-            Route::get(
-                'sales',
-                [SaleController::class, 'index']
-            )->name('sales.index');
+                Route::post(
+                    'terminals',
+                    [TerminalController::class, 'store']
+                )
+                    ->middleware('permission:terminals.manage')
+                    ->name('terminals.store');
 
-            Route::post(
-                'sales',
-                [SaleController::class, 'store']
-            )->name('sales.store');
+                Route::get(
+                    'terminals/{terminal}',
+                    [TerminalController::class, 'show']
+                )
+                    ->middleware('permission:terminals.view')
+                    ->name('terminals.show');
 
-            Route::get(
-                'sales/{sale}',
-                [SaleController::class, 'show']
-            )->name('sales.show');
+                Route::match(
+                    ['put', 'patch'],
+                    'terminals/{terminal}',
+                    [TerminalController::class, 'update']
+                )
+                    ->middleware('permission:terminals.manage')
+                    ->name('terminals.update');
 
-            Route::post(
-                'sales/{sale}/finalize',
-                [SaleController::class, 'finalize']
-            )->name('sales.finalize');
 
-            Route::get(
-                'sales/{sale}/payments',
-                [CaissePaymentController::class, 'index']
-            )->name('sales.payments.index');
+                /*
+                |--------------------------------------------------------------------------
+                | Devices
+                |--------------------------------------------------------------------------
+                */
 
-            Route::post(
-                'sales/{sale}/payments/cash',
-                [CaissePaymentController::class, 'payCash']
-            )->name('sales.payments.cash');
+                Route::get(
+                    'devices',
+                    [DeviceController::class, 'index']
+                )
+                    ->middleware('permission:devices.view')
+                    ->name('devices.index');
 
-            Route::get(
-                'stock',
-                [StockController::class, 'index']
-            )->name('stock.index');
+                Route::post(
+                    'devices',
+                    [DeviceController::class, 'store']
+                )
+                    ->middleware('permission:devices.manage')
+                    ->name('devices.store');
 
-            Route::post(
-                'stock/adjustments',
-                [StockController::class, 'adjust']
-            )->name('stock.adjust');
+                Route::get(
+                    'devices/{device}',
+                    [DeviceController::class, 'show']
+                )
+                    ->middleware('permission:devices.view')
+                    ->name('devices.show');
 
-            Route::post(
-                'sync/push',
-                [SyncController::class, 'push']
-            )->name('sync.push');
-        });
+                Route::match(
+                    ['put', 'patch'],
+                    'devices/{device}',
+                    [DeviceController::class, 'update']
+                )
+                    ->middleware('permission:devices.manage')
+                    ->name('devices.update');
+
+                Route::get(
+                    'devices/{device}/activity',
+                    [DeviceController::class, 'activity']
+                )
+                    ->middleware('permission:devices.view')
+                    ->name('devices.activity');
+
+                Route::post(
+                    'devices/{device}/revoke',
+                    [DeviceController::class, 'revoke']
+                )
+                    ->middleware('permission:devices.manage')
+                    ->name('devices.revoke');
+
+                Route::post(
+                    'devices/{device}/activate',
+                    [DeviceController::class, 'activate']
+                )
+                    ->middleware('permission:devices.manage')
+                    ->name('devices.activate');
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Sessions de caisse
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'cash-sessions',
+                    [CashSessionController::class, 'index']
+                )
+                    ->middleware('permission:cash.view')
+                    ->name('cash-sessions.index');
+
+                Route::post(
+                    'cash-sessions/open',
+                    [CashSessionController::class, 'store']
+                )
+                    ->middleware('permission:cash.open')
+                    ->name('cash-sessions.open');
+
+                Route::get(
+                    'cash-sessions/{cashSession}',
+                    [CashSessionController::class, 'show']
+                )
+                    ->middleware('permission:cash.view')
+                    ->name('cash-sessions.show');
+
+                Route::post(
+                    'cash-sessions/{cashSession}/close',
+                    [CashSessionController::class, 'close']
+                )
+                    ->middleware('permission:cash.close')
+                    ->name('cash-sessions.close');
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Ventes
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'sales',
+                    [SaleController::class, 'index']
+                )
+                    ->middleware('permission:sales.view')
+                    ->name('sales.index');
+
+                Route::post(
+                    'sales',
+                    [SaleController::class, 'store']
+                )
+                    ->middleware('permission:sales.create')
+                    ->name('sales.store');
+
+                Route::get(
+                    'sales/{sale}',
+                    [SaleController::class, 'show']
+                )
+                    ->middleware('permission:sales.view')
+                    ->name('sales.show');
+
+                Route::post(
+                    'sales/{sale}/finalize',
+                    [SaleController::class, 'finalize']
+                )
+                    ->middleware('permission:sales.finalize')
+                    ->name('sales.finalize');
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Paiements des ventes
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'sales/{sale}/payments',
+                    [CaissePaymentController::class, 'index']
+                )
+                    ->middleware('permission:sales.view')
+                    ->name('sales.payments.index');
+
+                Route::post(
+                    'sales/{sale}/payments/cash',
+                    [CaissePaymentController::class, 'payCash']
+                )
+                    ->middleware('permission:sales.create')
+                    ->name('sales.payments.cash');
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Stock
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'stock',
+                    [StockController::class, 'index']
+                )
+                    ->middleware('permission:stock.view')
+                    ->name('stock.index');
+
+                Route::post(
+                    'stock/adjustments',
+                    [StockController::class, 'adjust']
+                )
+                    ->middleware('permission:stock.manage')
+                    ->name('stock.adjust');
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | Synchronisation
+                |--------------------------------------------------------------------------
+                */
+
+                Route::post(
+                    'sync/push',
+                    [SyncController::class, 'push']
+                )
+                    ->middleware('permission:sync.push')
+                    ->name('sync.push');
+            });
 
 
         /*
@@ -301,7 +449,7 @@ Route::prefix('v1')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Paiements
+        | Paiements plateforme
         |--------------------------------------------------------------------------
         */
 
@@ -333,9 +481,6 @@ Route::prefix('v1')->group(function () {
     |--------------------------------------------------------------------------
     | Wave Balance
     |--------------------------------------------------------------------------
-    |
-    | Cette route reste hors auth:sanctum comme dans ta configuration actuelle.
-    |
     */
 
     Route::get(

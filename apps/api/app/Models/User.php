@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -38,10 +39,6 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
-    /**
-     * Vérifie si l'utilisateur possède un rôle précis
-     * dans une organisation.
-     */
     public function hasOrganizationRole(
         Organization $organization,
         string $role
@@ -52,10 +49,6 @@ class User extends Authenticatable
             ->exists();
     }
 
-    /**
-     * Vérifie si l'utilisateur possède au moins
-     * un des rôles indiqués dans une organisation.
-     */
     public function hasAnyOrganizationRole(
         Organization $organization,
         array $roles
@@ -66,10 +59,6 @@ class User extends Authenticatable
             ->exists();
     }
 
-    /**
-     * Retourne le rôle de l'utilisateur dans
-     * une organisation, ou null s'il n'en est pas membre.
-     */
     public function organizationRole(
         Organization $organization
     ): ?string {
@@ -80,15 +69,58 @@ class User extends Authenticatable
         return $membership?->pivot?->role;
     }
 
-    /**
-     * Vérifie si l'utilisateur est membre
-     * d'une organisation.
-     */
     public function belongsToOrganization(
         Organization $organization
     ): bool {
         return $this->organizations()
             ->whereKey($organization->id)
             ->exists();
+    }
+
+    public function organizationRoleAssignments(): HasMany
+    {
+        return $this->hasMany(
+            OrganizationUserRole::class,
+            'user_id'
+        );
+    }
+
+    public function rolesForOrganization(
+        Organization $organization
+    ): BelongsToMany {
+        return $this->belongsToMany(
+            Role::class,
+            'organization_user_roles',
+            'user_id',
+            'role_id'
+        )
+            ->wherePivot('organization_id', $organization->id)
+            ->withPivot('organization_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Permissions individuelles de l'utilisateur
+     * dans une organisation.
+     *
+     * Le champ pivot "granted" permet :
+     * true  = autoriser explicitement
+     * false = refuser explicitement
+     */
+    public function permissionsForOrganization(
+        Organization $organization
+    ): BelongsToMany {
+        return $this->belongsToMany(
+            Permission::class,
+            'user_permissions',
+            'user_id',
+            'permission_id'
+        )
+            ->wherePivot('organization_id', $organization->id)
+            ->withPivot([
+                'organization_id',
+                'granted',
+            ])
+            ->withTimestamps();
     }
 }

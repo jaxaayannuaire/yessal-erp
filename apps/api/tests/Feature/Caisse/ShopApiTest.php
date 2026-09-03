@@ -4,16 +4,25 @@ namespace Tests\Feature\Caisse;
 
 use App\Models\Caisse\Shop;
 use App\Models\Organization;
+use App\Models\OrganizationUserRole;
 use App\Models\Plan;
+use App\Models\Role;
 use App\Models\Subscription;
 use App\Models\User;
+use Database\Seeders\RbacSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ShopApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RbacSeeder::class);
+    }
 
     private function createOrganizationWithSubscription(): array
     {
@@ -23,6 +32,18 @@ class ShopApiTest extends TestCase
 
         $organization->users()->attach($user->id, [
             'role' => 'owner',
+        ]);
+
+        // Le rôle "owner" de organization_user est distinct
+        // du système RBAC basé sur organization_user_roles.
+        $adminRole = Role::whereNull('organization_id')
+            ->where('slug', 'admin')
+            ->firstOrFail();
+
+        OrganizationUserRole::create([
+            'organization_id' => $organization->id,
+            'user_id' => $user->id,
+            'role_id' => $adminRole->id,
         ]);
 
         $plan = Plan::factory()->create([

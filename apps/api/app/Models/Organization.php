@@ -27,9 +27,22 @@ class Organization extends Model
             ->withPivot('role')
             ->withTimestamps();
     }
-	
+
 	public function subscriptions(): HasMany
 	{
 		return $this->hasMany(Subscription::class);
+	}
+
+	public function roles(): HasMany
+	{
+		return $this->hasMany(Role::class);
+	}
+
+	public function userRoleAssignments(): HasMany
+	{
+		return $this->hasMany(
+			OrganizationUserRole::class,
+			'organization_id'
+		);
 	}
 }
