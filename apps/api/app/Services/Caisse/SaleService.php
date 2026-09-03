@@ -3,7 +3,11 @@
 namespace App\Services\Caisse;
 
 use App\Models\Caisse\Product;
+use App\Models\Caisse\ProductVariant;
 use App\Models\Caisse\Sale;
+use App\Models\Caisse\SaleLine;
+use App\Models\Caisse\StockLevel;
+use App\Models\Caisse\StockMovement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -56,9 +60,21 @@ class SaleService
                     ]);
                 }
 
-                $product = null;
+                $hasProduct = ! empty($line['product_id']);
+                $hasVariant = ! empty($line['product_variant_id']);
 
-                if (!empty($line['product_id'])) {
+                if ($hasProduct && $hasVariant) {
+                    throw ValidationException::withMessages([
+                        'lines' => [
+                            'Une ligne de vente ne peut référencer qu’un produit ou une variante.',
+                        ],
+                    ]);
+                }
+
+                $product = null;
+                $variant = null;
+
+                if ($hasProduct) {
                     $product = Product::query()
                         ->whereKey($line['product_id'])
                         ->where('shop_id', $data['shop_id'])
@@ -73,6 +89,27 @@ class SaleService
                     }
                 }
 
+                if ($hasVariant) {
+                    $variant = ProductVariant::query()
+                        ->with('product')
+                        ->whereKey($line['product_variant_id'])
+                        ->whereHas('product', fn ($query) => $query->where(
+                            'shop_id',
+                            $data['shop_id']
+                        ))
+                        ->first();
+
+                    if (! $variant || ! $variant->product) {
+                        throw ValidationException::withMessages([
+                            'lines' => [
+                                'Variante introuvable ou inaccessible pour cette boutique.',
+                            ],
+                        ]);
+                    }
+
+                    $product = $variant->product;
+                }
+
                 $productName = $product?->name
 					?? $line['product_name_snapshot']
 					?? 'Produit';
@@ -84,8 +121,8 @@ class SaleService
 					?? $line['barcode_snapshot'];
 
                 $sale->lines()->create([
-                    'product_id' => $product?->id ?? $line['product_id'] ?? null,
-                    'product_variant_id' => $line['product_variant_id'] ?? null,
+                    'product_id' => $variant ? null : $product?->id,
+                    'product_variant_id' => $variant?->id,
                     'product_name_snapshot' => $productName,
                     'sku_snapshot' => $productSku,
                     'barcode_snapshot' => $productBarcode,
@@ -116,6 +153,7 @@ class SaleService
     {
         return DB::transaction(function () use ($sale) {
             $sale = Sale::query()
+                ->with('lines')
                 ->lockForUpdate()
                 ->findOrFail($sale->id);
 
@@ -125,12 +163,20 @@ class SaleService
                 ]);
             }
 
-            if ($sale->status !== 'paid' || (int) $sale->due_amount !== 0) {
+            if (
+                $sale->status !== 'paid'
+                || (int) $sale->due_amount !== 0
+                || (int) $sale->paid_amount !== (int) $sale->total_amount
+            ) {
                 throw ValidationException::withMessages([
                     'sale' => [
-                        'Seule une vente entièrement payée peut être finalisée.',
+                        'Le paiement de la vente est incomplet.',
                     ],
                 ]);
+            }
+
+            foreach ($sale->lines as $line) {
+                $this->decrementStockForLine($sale, $line);
             }
 
             $sale->update([
@@ -140,6 +186,96 @@ class SaleService
 
             return $sale->refresh();
         });
+    }
+
+    private function decrementStockForLine(Sale $sale, SaleLine $line): void
+    {
+        $hasProduct = $line->product_id !== null;
+        $hasVariant = $line->product_variant_id !== null;
+
+        if (! $hasProduct && ! $hasVariant) {
+            return;
+        }
+
+        if ($hasProduct === $hasVariant) {
+            throw ValidationException::withMessages([
+                'sale' => ['La ligne de vente doit référencer un seul article de stock.'],
+            ]);
+        }
+
+        $product = null;
+        $variant = null;
+
+        if ($hasProduct) {
+            $product = Product::query()
+                ->whereKey($line->product_id)
+                ->where('shop_id', $sale->shop_id)
+                ->whereHas('shop', fn ($query) => $query->where(
+                    'organization_id',
+                    $sale->organization_id
+                ))
+                ->first();
+        } else {
+            $variant = ProductVariant::query()
+                ->with('product')
+                ->whereKey($line->product_variant_id)
+                ->whereHas('product', fn ($query) => $query->where(
+                    'shop_id',
+                    $sale->shop_id
+                ))
+                ->first();
+
+            $product = $variant?->product;
+        }
+
+        if (! $product) {
+            throw ValidationException::withMessages([
+                'sale' => ['Produit ou variante introuvable pour cette vente.'],
+            ]);
+        }
+
+        $levelQuery = StockLevel::query()
+            ->whereHas('location', fn ($query) => $query
+                ->where('organization_id', $sale->organization_id)
+                ->where('shop_id', $sale->shop_id)
+                ->where('status', 'active'))
+            ->orderBy('id')
+            ->lockForUpdate();
+
+        if ($hasProduct) {
+            $levelQuery->where('product_id', $product->id);
+        } else {
+            $levelQuery->where('product_variant_id', $variant->id);
+        }
+
+        $level = $levelQuery->first();
+
+        if (! $level || (float) $level->quantity < (float) $line->quantity) {
+            throw ValidationException::withMessages([
+                'sale' => ['Le stock disponible est insuffisant pour finaliser cette vente.'],
+            ]);
+        }
+
+        $level->update([
+            'quantity' => (float) $level->quantity - (float) $line->quantity,
+        ]);
+
+        StockMovement::create([
+            'organization_id' => $sale->organization_id,
+            'stock_location_id' => $level->stock_location_id,
+            'product_id' => $hasProduct ? $product->id : null,
+            'product_variant_id' => $hasVariant ? $variant->id : null,
+            'type' => 'sale_out',
+            'quantity' => $line->quantity,
+            'unit_cost' => $hasVariant
+                ? $variant->purchase_price
+                : $product->purchase_price,
+            'reference_type' => 'sale',
+            'reference_id' => (string) $sale->id,
+            'reason' => 'Finalisation de vente.',
+            'created_by' => $sale->cashier_user_id,
+            'created_at' => now(),
+        ]);
     }
 
     /**

@@ -225,35 +225,7 @@ class SaleController extends Controller
             abort(403, 'Vente inaccessible.');
         }
 
-        if ($sale->status === 'finalized') {
-            throw ValidationException::withMessages([
-                'sale' => [
-                    'Cette vente est déjà finalisée.',
-                ],
-            ]);
-        }
-
-        if ($sale->status !== 'paid') {
-            throw ValidationException::withMessages([
-                'sale' => [
-                    'Seule une vente entièrement payée peut être finalisée.',
-                ],
-            ]);
-        }
-
-        if ((int) $sale->due_amount !== 0 ||
-            (int) $sale->paid_amount !== (int) $sale->total_amount) {
-            throw ValidationException::withMessages([
-                'sale' => [
-                    'Le paiement de la vente est incomplet.',
-                ],
-            ]);
-        }
-
-        $sale->update([
-            'status' => 'finalized',
-            'finalized_at' => now(),
-        ]);
+        $sale = $this->saleService->finalize($sale);
 
         return response()->json([
             'success' => true,

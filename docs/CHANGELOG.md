@@ -6,6 +6,22 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-03 — Intégration ventes et stock
+
+### Finalisation des ventes
+
+- La finalisation d'une vente payée décrémente désormais les niveaux de stock des produits et variantes vendus.
+- Les sorties créent des mouvements `sale_out` liés à la vente et à la localisation de stock consommée.
+- La vente, les niveaux et les mouvements sont traités dans une même transaction ; un stock insuffisant annule intégralement la finalisation.
+- Les retries de finalisation restent protégés : une vente déjà finalisée ne recrée pas de mouvement ni de décrément.
+
+### Sécurité et tests
+
+- Les produits, variantes et localisations sont vérifiés dans le périmètre de l'organisation et de la boutique de la vente.
+- Validation : 338 tests, 902 assertions, 0 échec.
+
+---
+
 ## 2026-09-03 — Catalogue Produits Caisse
 
 ### API catalogue
