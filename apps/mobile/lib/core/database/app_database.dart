@@ -131,6 +131,31 @@ class BootstrapMetadata extends Table {
   Set<Column<Object>> get primaryKey => {organizationId, shopId};
 }
 
+class SyncOutbox extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get organizationId => integer()();
+  IntColumn get shopId => integer()();
+  IntColumn get deviceId => integer()();
+  TextColumn get eventUuid => text()();
+  TextColumn get entityType => text()();
+  TextColumn get entityId => text()();
+  TextColumn get action => text()();
+  TextColumn get payloadJson => text()();
+  DateTimeColumn get occurredAt => dateTime()();
+  TextColumn get status => text().withDefault(const Constant('queued'))();
+  IntColumn get attemptCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get lastAttemptAt => dateTime().nullable()();
+  TextColumn get lastError => text().nullable()();
+  TextColumn get serverResultJson => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {organizationId, eventUuid},
+  ];
+}
+
 @DriftDatabase(
   tables: [
     OrganizationsCache,
@@ -143,6 +168,7 @@ class BootstrapMetadata extends Table {
     CashSessions,
     SyncMetadata,
     BootstrapMetadata,
+    SyncOutbox,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -160,7 +186,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -169,7 +195,7 @@ class AppDatabase extends _$AppDatabase {
       await _createIndexes();
     },
     onUpgrade: (migrator, from, to) async {
-      // Version 1: no published database needs a data migration yet.
+      if (from < 2) await migrator.createTable(syncOutbox);
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -181,6 +207,12 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS products_lookup '
       'ON products (organization_id, shop_id, name, sku, barcode)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS sync_outbox_status ON sync_outbox (organization_id, status)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS sync_outbox_created ON sync_outbox (organization_id, created_at)',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS variants_lookup '

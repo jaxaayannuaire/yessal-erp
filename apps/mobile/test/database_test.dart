@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yessal_caisse/core/database/app_database.dart'
@@ -254,6 +257,210 @@ void main() {
     await expectLater(_writeSnapshot(failing), throwsStateError);
     expect(await database.select(database.products).get(), isEmpty);
     expect(await local.readSnapshot(organizationId: 1, shopId: 10), isNull);
+  });
+
+  test('stores tenant-isolated queued sync outbox events', () async {
+    final now = DateTime.utc(2026, 1, 1);
+    final payload =
+        '{"terminal_id":20,"cash_session_id":30,"local_uuid":"sale-1","receipt_number":"MOB-1","currency":"XOF","lines":[],"payment":{"method":"cash","amount":0},"finalize":true}';
+    final id = await database
+        .into(database.syncOutbox)
+        .insert(
+          SyncOutboxCompanion.insert(
+            organizationId: 1,
+            shopId: 10,
+            deviceId: 20,
+            eventUuid: 'event-1',
+            entityType: 'sale',
+            entityId: 'sale-1',
+            action: 'create',
+            payloadJson: payload,
+            occurredAt: now,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    final row = await (database.select(
+      database.syncOutbox,
+    )..where((r) => r.id.equals(id))).getSingle();
+    expect(row.status, 'queued');
+    expect(row.attemptCount, 0);
+    expect(row.payloadJson, payload);
+    await expectLater(
+      database
+          .into(database.syncOutbox)
+          .insert(
+            SyncOutboxCompanion.insert(
+              organizationId: 1,
+              shopId: 10,
+              deviceId: 20,
+              eventUuid: 'event-1',
+              entityType: 'sale',
+              entityId: 'sale-2',
+              action: 'create',
+              payloadJson: payload,
+              occurredAt: now,
+              createdAt: now,
+              updatedAt: now,
+            ),
+          ),
+      throwsA(isA<Exception>()),
+    );
+    await database
+        .into(database.syncOutbox)
+        .insert(
+          SyncOutboxCompanion.insert(
+            organizationId: 2,
+            shopId: 10,
+            deviceId: 20,
+            eventUuid: 'event-1',
+            entityType: 'sale',
+            entityId: 'sale-1',
+            action: 'create',
+            payloadJson: payload,
+            occurredAt: now,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    expect(await database.select(database.syncOutbox).get(), hasLength(2));
+  });
+
+  test(
+    'persists a sync outbox event after reopening the same SQLite file',
+    () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp('yessal-outbox-');
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}outbox.sqlite',
+      );
+      final now = DateTime.utc(2026, 1, 2);
+      final executorA = NativeDatabase(file);
+      final first = AppDatabase(executorA);
+      await first
+          .into(first.syncOutbox)
+          .insert(
+            SyncOutboxCompanion.insert(
+              organizationId: 1,
+              shopId: 10,
+              deviceId: 20,
+              eventUuid: 'event-reopen',
+              entityType: 'sale',
+              entityId: 'sale-reopen',
+              action: 'create',
+              payloadJson: '{"local_uuid":"sale-reopen"}',
+              occurredAt: now,
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+      await first.close();
+      final executorB = NativeDatabase(file);
+      final reopened = AppDatabase(executorB);
+      final row = await (reopened.select(
+        reopened.syncOutbox,
+      )..where((r) => r.eventUuid.equals('event-reopen'))).getSingle();
+      expect(row.organizationId, 1);
+      expect(row.shopId, 10);
+      expect(row.deviceId, 20);
+      expect(row.entityId, 'sale-reopen');
+      expect(row.payloadJson, '{"local_uuid":"sale-reopen"}');
+      expect(row.status, 'queued');
+      expect(row.attemptCount, 0);
+      await reopened.close();
+      await directory.delete(recursive: true);
+    },
+  );
+
+  test('keeps existing tables usable alongside sync outbox', () async {
+    await database
+        .into(database.products)
+        .insert(
+          ProductsCompanion.insert(
+            organizationId: 1,
+            id: 9,
+            shopId: 10,
+            name: 'Produit existant',
+            salePrice: 100,
+            rawJson: '{}',
+          ),
+        );
+    final now = DateTime.utc(2026, 1, 3);
+    await database
+        .into(database.syncOutbox)
+        .insert(
+          SyncOutboxCompanion.insert(
+            organizationId: 1,
+            shopId: 10,
+            deviceId: 20,
+            eventUuid: 'event-existing',
+            entityType: 'sale',
+            entityId: 'sale-existing',
+            action: 'create',
+            payloadJson: '{}',
+            occurredAt: now,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    expect(await database.select(database.products).get(), hasLength(1));
+    expect(await database.select(database.syncOutbox).get(), hasLength(1));
+  });
+
+  test('updates outbox status and nullable error/result fields', () async {
+    final now = DateTime.utc(2026, 1, 4);
+    final id = await database
+        .into(database.syncOutbox)
+        .insert(
+          SyncOutboxCompanion.insert(
+            organizationId: 1,
+            shopId: 10,
+            deviceId: 20,
+            eventUuid: 'event-status',
+            entityType: 'sale',
+            entityId: 'sale-status',
+            action: 'create',
+            payloadJson: '{}',
+            occurredAt: now,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    var row = await (database.select(
+      database.syncOutbox,
+    )..where((r) => r.id.equals(id))).getSingle();
+    expect(row.lastError, isNull);
+    expect(row.serverResultJson, isNull);
+    await (database.update(
+      database.syncOutbox,
+    )..where((r) => r.id.equals(id))).write(
+      SyncOutboxCompanion(
+        status: const Value('sending'),
+        attemptCount: const Value(1),
+        lastAttemptAt: Value(now),
+      ),
+    );
+    row = await (database.select(
+      database.syncOutbox,
+    )..where((r) => r.id.equals(id))).getSingle();
+    expect(row.status, 'sending');
+    expect(row.attemptCount, 1);
+    expect(row.lastAttemptAt!.toUtc(), now);
+    await (database.update(
+      database.syncOutbox,
+    )..where((r) => r.id.equals(id))).write(
+      const SyncOutboxCompanion(
+        status: Value('applied'),
+        lastError: Value('none'),
+        serverResultJson: Value('{"sale_id":123,"status":"finalized"}'),
+      ),
+    );
+    row = await (database.select(
+      database.syncOutbox,
+    )..where((r) => r.id.equals(id))).getSingle();
+    expect(row.status, 'applied');
+    expect(row.lastError, 'none');
+    expect(row.serverResultJson, contains('sale_id'));
   });
 }
 
