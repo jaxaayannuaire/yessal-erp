@@ -144,9 +144,9 @@ Le quota d’appareils actifs, le journal d’activité, le nettoyage automatiqu
 
 ### Synchronisation
 
-Les fondations de synchronisation offline et d’idempotence sont en place.
+Le push idempotent et le pull incrémental tenant-scopé sont disponibles pour les catégories, produits et clients. Le curseur repose sur un journal append-only de changements.
 
-La gestion avancée des conflits et de la résilience reste à approfondir.
+Le replay métier des ventes offline, les variantes, les paiements, le stock, la caisse et la résolution avancée des conflits restent à approfondir.
 
 ---
 

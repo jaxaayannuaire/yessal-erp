@@ -567,6 +567,13 @@ Route::prefix('v1')->group(function () {
                 )
                     ->middleware('permission:sync.push')
                     ->name('sync.push');
+
+                Route::get(
+                    'sync/pull',
+                    [SyncController::class, 'pull']
+                )
+                    ->middleware('permission:sync.push')
+                    ->name('sync.pull');
             });
 
 

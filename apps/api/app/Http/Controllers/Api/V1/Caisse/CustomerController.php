@@ -5,12 +5,18 @@ namespace App\Http\Controllers\Api\V1\Caisse;
 use App\Http\Controllers\Controller;
 use App\Models\Caisse\Customer;
 use App\Models\Caisse\Shop;
+use App\Services\Caisse\SyncChangeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 
 class CustomerController extends Controller
 {
+    public function __construct(private readonly SyncChangeService $syncChanges)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $organization = $request->attributes->get('currentOrganization');
@@ -63,11 +69,17 @@ class CustomerController extends Controller
         );
         $validated = $request->validate($this->rules());
 
-        $customer = Customer::create([
-            ...$validated,
-            'shop_id' => $shop->id,
-            'status' => $validated['status'] ?? 'active',
-        ]);
+        $customer = DB::transaction(function () use ($validated, $shop, $organization) {
+            $customer = Customer::create([
+                ...$validated,
+                'shop_id' => $shop->id,
+                'status' => $validated['status'] ?? 'active',
+            ]);
+
+            $this->syncChanges->record($organization->id, 'customer', $customer);
+
+            return $customer;
+        });
 
         return response()->json([
             'success' => true,
@@ -91,7 +103,13 @@ class CustomerController extends Controller
         $this->ensureCustomerOrganization($request, $customer);
         $validated = $request->validate($this->rules($customer));
 
-        $customer->update($validated);
+        $organization = $request->attributes->get('currentOrganization');
+
+        DB::transaction(function () use ($customer, $validated, $organization) {
+            $customer->update($validated);
+
+            $this->syncChanges->record($organization->id, 'customer', $customer);
+        });
 
         return response()->json([
             'success' => true,

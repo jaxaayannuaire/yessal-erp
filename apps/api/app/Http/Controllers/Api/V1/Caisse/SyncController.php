@@ -4,13 +4,15 @@ namespace App\Http\Controllers\Api\V1\Caisse;
 
 use App\Http\Controllers\Controller;
 use App\Services\Caisse\SyncService;
+use App\Services\Caisse\SyncChangeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SyncController extends Controller
 {
     public function __construct(
-        private readonly SyncService $syncService
+        private readonly SyncService $syncService,
+        private readonly SyncChangeService $syncChanges
     ) {
     }
 
@@ -89,6 +91,26 @@ class SyncController extends Controller
             'accepted' => $result['accepted'],
             'rejected' => $result['rejected'],
             'conflicts' => $result['conflicts'],
+        ]);
+    }
+
+    public function pull(Request $request): JsonResponse
+    {
+        $organizationId = (int) $request
+            ->attributes
+            ->get('organization_id');
+        $validated = $request->validate([
+            'cursor' => ['nullable', 'integer', 'min:0'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            ...$this->syncChanges->pull(
+                $organizationId,
+                (int) ($validated['cursor'] ?? 0),
+                (int) ($validated['limit'] ?? 100)
+            ),
         ]);
     }
 }

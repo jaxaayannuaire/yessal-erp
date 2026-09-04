@@ -7,14 +7,19 @@ use App\Models\Caisse\Category;
 use App\Models\Caisse\Product;
 use App\Models\Caisse\Shop;
 use App\Services\Entitlements\QuotaService;
+use App\Services\Caisse\SyncChangeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
-    public function __construct(private readonly QuotaService $quotaService)
+    public function __construct(
+        private readonly QuotaService $quotaService,
+        private readonly SyncChangeService $syncChanges
+    )
     {
     }
 
@@ -81,12 +86,18 @@ class ProductController extends Controller
             $shop
         );
 
-        $product = Product::create([
-            ...$validated,
-            'shop_id' => $shop->id,
-            'category_id' => $category?->id,
-            'status' => $validated['status'] ?? 'active',
-        ]);
+        $product = DB::transaction(function () use ($validated, $shop, $category, $organization) {
+            $product = Product::create([
+                ...$validated,
+                'shop_id' => $shop->id,
+                'category_id' => $category?->id,
+                'status' => $validated['status'] ?? 'active',
+            ]);
+
+            $this->syncChanges->record($organization->id, 'product', $product);
+
+            return $product;
+        });
 
         return response()->json([
             'success' => true,
@@ -122,11 +133,15 @@ class ProductController extends Controller
 
         $category = $this->categoryForShop($categoryId, $shop);
 
-        $product->update([
-            ...$validated,
-            'shop_id' => $shop->id,
-            'category_id' => $category?->id,
-        ]);
+        DB::transaction(function () use ($product, $validated, $shop, $category, $organization) {
+            $product->update([
+                ...$validated,
+                'shop_id' => $shop->id,
+                'category_id' => $category?->id,
+            ]);
+
+            $this->syncChanges->record($organization->id, 'product', $product);
+        });
 
         return response()->json([
             'success' => true,

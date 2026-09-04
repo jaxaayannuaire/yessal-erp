@@ -6,6 +6,23 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-04 — Sync offline incrémental
+
+### Protocole de synchronisation
+
+- Ajout de `GET /api/v1/caisse/sync/pull` avec curseur monotone, pagination et isolation stricte par organisation.
+- Le journal append-only `sync_changes` propage les créations et mises à jour de catégories, produits et clients sous forme d'`upsert`.
+- Le bootstrap avec `cursor=0` renvoie uniquement les changements conservés dans le journal ; il ne reconstruit pas les données antérieures.
+
+### Push et limites
+
+- Le push conserve l'unicité `organization_id + event_uuid` et marque les retries comme doublons.
+- Seuls les événements `sale.create` et `sale.created` sont actuellement acceptés et restent `pending` : aucun replay métier de vente offline n'est encore appliqué.
+- Les conflits de données de référence suivent une convention server-wins par ordre de curseur ; variantes, ventes, paiements, stock et caisse restent à journaliser dans un lot ultérieur.
+- Validation : 382 tests, 1 200 assertions, 0 échec.
+
+---
+
 ## 2026-09-04 — Remboursements Caisse
 
 ### Remboursements financiers

@@ -12,6 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class SyncService
 {
+    private const SUPPORTED_EVENT_TYPES = [
+        'sale' => ['create', 'created'],
+    ];
+
     public function push(
         int $organizationId,
         int $deviceId,
@@ -56,6 +60,12 @@ class SyncService
                     $device,
                     $event
                 ) {
+                    if (! $this->isSupportedEvent($event)) {
+                        throw ValidationException::withMessages([
+                            'entity_type' => ['Type ou action de synchronisation non pris en charge.'],
+                        ]);
+                    }
+
                     $shopId = $event['shop_id'] ?? null;
 
                     if ($shopId !== null) {
@@ -92,6 +102,7 @@ class SyncService
                     if ($existing) {
                         return [
                             'type' => 'accepted',
+                            'status' => 'duplicate',
                             'id' => $existing->id,
                             'duplicate' => true,
                         ];
@@ -112,6 +123,7 @@ class SyncService
 
                     return [
                         'type' => 'accepted',
+                        'status' => 'pending',
                         'id' => $created->id,
                         'duplicate' => false,
                     ];
@@ -134,6 +146,7 @@ class SyncService
 
                 $accepted[] = [
                     'type' => 'accepted',
+                    'status' => 'duplicate',
                     'id' => $existing->id,
                     'duplicate' => true,
                 ];
@@ -177,6 +190,15 @@ class SyncService
             'accepted',
             'rejected',
             'conflicts'
+        );
+    }
+
+    private function isSupportedEvent(array $event): bool
+    {
+        return in_array(
+            $event['action'],
+            self::SUPPORTED_EVENT_TYPES[$event['entity_type']] ?? [],
+            true
         );
     }
 

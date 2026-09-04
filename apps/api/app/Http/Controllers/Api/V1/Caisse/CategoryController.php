@@ -5,13 +5,19 @@ namespace App\Http\Controllers\Api\V1\Caisse;
 use App\Http\Controllers\Controller;
 use App\Models\Caisse\Category;
 use App\Models\Caisse\Shop;
+use App\Services\Caisse\SyncChangeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
+    public function __construct(private readonly SyncChangeService $syncChanges)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $organization = $request->attributes->get('currentOrganization');
@@ -52,11 +58,17 @@ class CategoryController extends Controller
             $organization->id,
             $request->integer('shop_id')
         );
-        $category = Category::create([
-            ...$request->validate($this->rules($shop)),
-            'shop_id' => $shop->id,
-            'status' => $request->input('status', 'active'),
-        ]);
+        $category = DB::transaction(function () use ($request, $shop, $organization) {
+            $category = Category::create([
+                ...$request->validate($this->rules($shop)),
+                'shop_id' => $shop->id,
+                'status' => $request->input('status', 'active'),
+            ]);
+
+            $this->syncChanges->record($organization->id, 'category', $category);
+
+            return $category;
+        });
 
         return response()->json([
             'success' => true,
@@ -95,10 +107,14 @@ class CategoryController extends Controller
 
         $validated = $request->validate($this->rules($shop, $category));
 
-        $category->update([
-            ...$validated,
-            'shop_id' => $shop->id,
-        ]);
+        DB::transaction(function () use ($category, $validated, $shop, $organization) {
+            $category->update([
+                ...$validated,
+                'shop_id' => $shop->id,
+            ]);
+
+            $this->syncChanges->record($organization->id, 'category', $category);
+        });
 
         return response()->json([
             'success' => true,
