@@ -6,6 +6,21 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-04 — Reporting Caisse minimal
+
+### Synthèse opérationnelle
+
+- Ajout de `GET /api/v1/caisse/reports/overview`, avec filtres de période et de boutique.
+- La synthèse couvre les ventes finalisées, les paiements confirmés par moyen de paiement, les sessions de caisse, le stock courant, les boutiques et le nombre de clients actifs.
+- Le chiffre d'affaires et l'encaissé excluent les ventes annulées ; celles-ci sont comptées séparément.
+
+### Sécurité et tests
+
+- L'accès est protégé par `reports.view` et toutes les agrégations restent isolées par organisation.
+- Validation : 363 tests, 1 083 assertions, 0 échec.
+
+---
+
 ## 2026-09-04 — Clients / Tiers Caisse
 
 ### API et ventes

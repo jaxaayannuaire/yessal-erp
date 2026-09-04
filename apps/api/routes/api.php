@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\EntitlementController;
 use App\Http\Controllers\Api\V1\Caisse\ShopController;
 use App\Http\Controllers\Api\V1\Caisse\CategoryController;
 use App\Http\Controllers\Api\V1\Caisse\CustomerController;
+use App\Http\Controllers\Api\V1\Caisse\ReportingController;
 use App\Http\Controllers\Api\V1\Caisse\ProductController;
 use App\Http\Controllers\Api\V1\Caisse\ProductVariantController;
 use App\Http\Controllers\Api\V1\Caisse\TerminalController;
@@ -198,6 +199,19 @@ Route::prefix('v1')->group(function () {
                 )
                     ->middleware('permission:customers.view')
                     ->name('customers.sales');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Reporting
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'reports/overview',
+                    [ReportingController::class, 'overview']
+                )
+                    ->middleware('permission:reports.view')
+                    ->name('reports.overview');
 
                 /*
                 |--------------------------------------------------------------------------

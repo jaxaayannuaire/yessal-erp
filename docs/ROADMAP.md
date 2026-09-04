@@ -55,6 +55,7 @@ Yessal Caisse
 | Shop | ✅ Réalisé |
 | Catalogue produits | ✅ Réalisé |
 | Clients / Tiers Caisse | ✅ Réalisé |
+| Reporting Caisse minimal | ✅ Réalisé |
 | Terminal | ✅ Réalisé |
 | Device | ✅ Réalisé |
 | Device Activity | ✅ Réalisé |
