@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app/app_session.dart';
 import 'core/api/api_client.dart';
 import 'core/auth/auth_repository.dart';
 import 'core/bootstrap/bootstrap_repository.dart';
+import 'core/database/app_database.dart';
+import 'core/database/local_repositories.dart';
 import 'core/models/caisse_models.dart';
 import 'core/storage/local_cache_store.dart';
 import 'core/storage/token_storage.dart';
@@ -13,21 +17,27 @@ void main() {
   final tokens = TokenStorage();
   final api = ApiClient(tokenStorage: tokens);
   final cache = LocalCacheStore();
+  final database = AppDatabase.defaults();
   final session = AppSession(
     api,
     AuthRepository(api, tokens),
-    BootstrapRepository(api, cache),
+    BootstrapRepository(api, BootstrapLocalRepository(database)),
     cache,
   );
   api.onUnauthorized = session.expireSession;
 
-  runApp(YessalCaisseApp(session: session));
+  runApp(YessalCaisseApp(session: session, database: database));
 }
 
 class YessalCaisseApp extends StatefulWidget {
-  const YessalCaisseApp({super.key, required this.session});
+  const YessalCaisseApp({
+    super.key,
+    required this.session,
+    required this.database,
+  });
 
   final AppSession session;
+  final AppDatabase database;
 
   @override
   State<YessalCaisseApp> createState() => _YessalCaisseAppState();
@@ -43,6 +53,7 @@ class _YessalCaisseAppState extends State<YessalCaisseApp> {
   @override
   void dispose() {
     widget.session.dispose();
+    unawaited(widget.database.close());
     super.dispose();
   }
 

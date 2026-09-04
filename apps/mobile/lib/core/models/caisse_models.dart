@@ -61,6 +61,29 @@ class Product {
   Map<String, dynamic> toJson() => raw;
 }
 
+class ProductVariant {
+  const ProductVariant({
+    required this.id,
+    required this.productId,
+    required this.name,
+    required this.salePrice,
+    required this.raw,
+  });
+  final int id;
+  final int productId;
+  final String name;
+  final int salePrice;
+  final Map<String, dynamic> raw;
+  factory ProductVariant.fromJson(Map<String, dynamic> json) => ProductVariant(
+    id: json['id'] as int,
+    productId: json['product_id'] as int,
+    name: json['name'] as String,
+    salePrice: (json['sale_price'] ?? 0) as int,
+    raw: json,
+  );
+  Map<String, dynamic> toJson() => raw;
+}
+
 class Customer {
   const Customer({
     required this.id,

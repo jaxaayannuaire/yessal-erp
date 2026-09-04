@@ -69,9 +69,12 @@ class AppSession extends ChangeNotifier {
   Future<void> selectOrganization(Organization value) async {
     organization = value;
     _api.organizationId = value.id;
+    await _bootstrap.cacheOrganization(value);
     await _persistContext();
     final shops = await _bootstrap.shops();
-    if (shops.length == 1) await selectShop(shops.single);
+    if (shops.length == 1) {
+      await selectShop(shops.single);
+    }
     notifyListeners();
   }
 
@@ -89,7 +92,9 @@ class AppSession extends ChangeNotifier {
     final matching = terminals
         .where((item) => item.raw['shop_id'] == value.id)
         .toList();
-    if (matching.length == 1) await selectTerminal(matching.single);
+    if (matching.length == 1) {
+      await selectTerminal(matching.single);
+    }
     notifyListeners();
   }
 
@@ -127,12 +132,8 @@ class AppSession extends ChangeNotifier {
   }
 
   Future<String> _deviceUuid() async {
-    final existing = await _cache.readJson(
-      user!.id,
-      organization!.id,
-      'device_uuid',
-    );
-    if (existing is String) return existing;
+    final existing = await _cache.readDeviceUuid(user!.id, organization!.id);
+    if (existing != null) return existing;
     final random = Random.secure();
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -142,18 +143,20 @@ class AppSession extends ChangeNotifier {
         .join();
     final uuid =
         '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
-    await _cache.writeJson(user!.id, organization!.id, 'device_uuid', uuid);
+    await _cache.writeDeviceUuid(user!.id, organization!.id, uuid);
     return uuid;
   }
 
   Future<void> bootstrap() async {
     try {
-      bootstrapData = await _bootstrap.bootstrap(user!.id, organization!.id);
+      bootstrapData = await _bootstrap.bootstrap(organization!.id, shop!.id);
       isOffline = false;
       error = null;
       await _persistContext();
     } catch (_) {
-      bootstrapData = await _bootstrap.cached(user!.id, organization!.id);
+      bootstrapData = shop == null
+          ? null
+          : await _bootstrap.cached(organization!.id, shop!.id);
       isOffline = bootstrapData != null;
       error = bootstrapData == null
           ? 'Le bootstrap nécessite une connexion initiale.'
@@ -184,7 +187,9 @@ class AppSession extends ChangeNotifier {
     shop = _entity(context['shop']);
     terminal = _entity(context['terminal']);
     device = _entity(context['device']);
-    bootstrapData = await _bootstrap.cached(user!.id, organization!.id);
+    bootstrapData = shop == null
+        ? null
+        : await _bootstrap.cached(organization!.id, shop!.id);
     isOffline = bootstrapData != null;
   }
 
