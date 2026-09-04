@@ -11,6 +11,7 @@ import 'core/database/local_repositories.dart';
 import 'core/models/caisse_models.dart';
 import 'core/storage/local_cache_store.dart';
 import 'core/storage/token_storage.dart';
+import 'features/catalogue/local_catalogue_screens.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,7 +107,7 @@ class _YessalCaisseAppState extends State<YessalCaisseApp> {
       );
     }
 
-    return HomeScreen(session: session);
+    return HomeScreen(session: session, database: widget.database);
   }
 }
 
@@ -277,9 +278,10 @@ class _FutureSelectionScreenState extends State<FutureSelectionScreen> {
 }
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.session});
+  const HomeScreen({super.key, required this.session, required this.database});
 
   final AppSession session;
+  final AppDatabase database;
 
   @override
   Widget build(BuildContext context) {
@@ -314,24 +316,65 @@ class HomeScreen extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children:
-                  [
-                        'Vente',
-                        'Produits',
-                        'Clients',
-                        'Stock',
-                        'Caisse',
-                        'Rapports',
-                      ]
-                      .map(
-                        (label) =>
-                            ActionChip(label: Text(label), onPressed: () {}),
-                      )
-                      .toList(),
+              children: [
+                _shortcut(context, 'Vente'),
+                _shortcut(
+                  context,
+                  'Produits',
+                  () => _open(
+                    context,
+                    ProductListScreen(database: database, scope: _scope()),
+                  ),
+                ),
+                _shortcut(
+                  context,
+                  'Clients',
+                  () => _open(
+                    context,
+                    CustomerListScreen(database: database, scope: _scope()),
+                  ),
+                ),
+                _shortcut(
+                  context,
+                  'Stock',
+                  () => _open(
+                    context,
+                    StockScreen(database: database, scope: _scope()),
+                  ),
+                ),
+                _shortcut(context, 'Caisse'),
+                _shortcut(context, 'Rapports'),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  LocalScope _scope() => LocalScope(
+    organizationId: session.organization!.id,
+    shopId: session.shop!.id,
+    isOffline: session.isOffline,
+    onRefresh: session.bootstrap,
+  );
+
+  ActionChip _shortcut(
+    BuildContext context,
+    String label, [
+    VoidCallback? onPressed,
+  ]) => ActionChip(
+    label: Text(label),
+    onPressed: onPressed ?? () => _notReady(context, label),
+  );
+
+  void _open(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+
+  void _notReady(BuildContext context, String label) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$label sera disponible dans un prochain lot.')),
     );
   }
 }

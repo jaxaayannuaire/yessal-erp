@@ -353,19 +353,24 @@ class CatalogueLocalRepository {
   Future<List<Product>> searchProducts(
     String query,
     int organizationId,
-    int shopId,
-  ) async {
+    int shopId, {
+    int? categoryId,
+  }) async {
     final pattern = '%${query.trim()}%';
     final rows =
         await (_database.select(_database.products)
-              ..where(
-                (row) =>
+              ..where((row) {
+                var expression =
                     row.organizationId.equals(organizationId) &
                     row.shopId.equals(shopId) &
                     (row.name.like(pattern) |
                         row.sku.like(pattern) |
-                        row.barcode.like(pattern)),
-              )
+                        row.barcode.like(pattern));
+                if (categoryId != null) {
+                  expression = expression & row.categoryId.equals(categoryId);
+                }
+                return expression;
+              })
               ..orderBy([(row) => OrderingTerm.asc(row.name)]))
             .get();
     return rows
@@ -387,6 +392,52 @@ class CatalogueLocalRepository {
     return rows
         .map((row) => ProductVariant.fromJson(db.decodeRaw(row.rawJson)))
         .toList();
+  }
+
+  Future<List<CaisseEntity>> categories(int organizationId, int shopId) async {
+    final rows =
+        await (_database.select(_database.categories)
+              ..where(
+                (row) =>
+                    row.organizationId.equals(organizationId) &
+                    (row.shopId.equals(shopId) | row.shopId.isNull()),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.name)]))
+            .get();
+    return rows
+        .map((row) => CaisseEntity.fromJson(db.decodeRaw(row.rawJson)))
+        .toList();
+  }
+
+  /// Returns direct product stock only. Variant stock stays separate so the
+  /// catalogue never double-counts variant quantities as product quantities.
+  Future<Map<int, double>> productStockById(
+    int organizationId,
+    int shopId,
+    Iterable<int> productIds,
+  ) async {
+    final ids = productIds.toSet().toList();
+    if (ids.isEmpty) return const {};
+    final rows =
+        await (_database.select(_database.stockLevels)..where(
+              (row) =>
+                  row.organizationId.equals(organizationId) &
+                  row.shopId.equals(shopId) &
+                  row.productId.isIn(ids) &
+                  row.variantId.isNull(),
+            ))
+            .get();
+    final totals = <int, double>{};
+    for (final row in rows) {
+      final productId = row.productId;
+      if (productId == null) continue;
+      totals.update(
+        productId,
+        (total) => total + row.quantity,
+        ifAbsent: () => row.quantity,
+      );
+    }
+    return totals;
   }
 }
 
@@ -444,6 +495,175 @@ class StockLocalRepository {
             .get();
     return rows.map((row) => db.decodeRaw(row.rawJson)).toList();
   }
+
+  Future<double> productQuantity({
+    required int organizationId,
+    required int shopId,
+    required int productId,
+  }) => _quantity(
+    organizationId: organizationId,
+    shopId: shopId,
+    productId: productId,
+    directProductOnly: true,
+  );
+
+  Future<double> variantQuantity({
+    required int organizationId,
+    required int shopId,
+    required int variantId,
+  }) => _quantity(
+    organizationId: organizationId,
+    shopId: shopId,
+    variantId: variantId,
+  );
+
+  Future<Map<int, double>> variantStockById(
+    int organizationId,
+    int shopId,
+    Iterable<int> variantIds,
+  ) async {
+    final ids = variantIds.toSet().toList();
+    if (ids.isEmpty) return const {};
+    final rows =
+        await (_database.select(_database.stockLevels)..where(
+              (row) =>
+                  row.organizationId.equals(organizationId) &
+                  row.shopId.equals(shopId) &
+                  row.variantId.isIn(ids),
+            ))
+            .get();
+    final totals = <int, double>{};
+    for (final row in rows) {
+      final variantId = row.variantId;
+      if (variantId == null) continue;
+      totals.update(
+        variantId,
+        (total) => total + row.quantity,
+        ifAbsent: () => row.quantity,
+      );
+    }
+    return totals;
+  }
+
+  Future<double> _quantity({
+    required int organizationId,
+    required int shopId,
+    int? productId,
+    int? variantId,
+    bool directProductOnly = false,
+  }) async {
+    final rows =
+        await (_database.select(_database.stockLevels)..where((row) {
+              var expression =
+                  row.organizationId.equals(organizationId) &
+                  row.shopId.equals(shopId);
+              if (productId != null) {
+                expression = expression & row.productId.equals(productId);
+              }
+              if (variantId != null) {
+                expression = expression & row.variantId.equals(variantId);
+              }
+              if (directProductOnly) {
+                expression = expression & row.variantId.isNull();
+              }
+              return expression;
+            }))
+            .get();
+    return rows.fold<double>(0, (total, row) => total + row.quantity);
+  }
+
+  Future<List<StockEntry>> searchStock({
+    required int organizationId,
+    required int shopId,
+    String query = '',
+  }) async {
+    final stockRows =
+        await (_database.select(_database.stockLevels)..where(
+              (row) =>
+                  row.organizationId.equals(organizationId) &
+                  row.shopId.equals(shopId),
+            ))
+            .get();
+    if (stockRows.isEmpty) return const [];
+
+    final productIds = stockRows
+        .map((row) => row.productId)
+        .whereType<int>()
+        .toSet()
+        .toList();
+    final variantIds = stockRows
+        .map((row) => row.variantId)
+        .whereType<int>()
+        .toSet()
+        .toList();
+    final productRows = productIds.isEmpty
+        ? const <db.Product>[]
+        : await (_database.select(_database.products)..where(
+                (row) =>
+                    row.organizationId.equals(organizationId) &
+                    row.id.isIn(productIds),
+              ))
+              .get();
+    final variantRows = variantIds.isEmpty
+        ? const <db.ProductVariant>[]
+        : await (_database.select(_database.productVariants)..where(
+                (row) =>
+                    row.organizationId.equals(organizationId) &
+                    row.id.isIn(variantIds),
+              ))
+              .get();
+    final products = {for (final row in productRows) row.id: row};
+    final variants = {for (final row in variantRows) row.id: row};
+    final normalized = query.trim().toLowerCase();
+
+    return stockRows
+        .map((row) {
+          final variant = row.variantId == null
+              ? null
+              : variants[row.variantId];
+          final product = row.productId == null
+              ? null
+              : products[row.productId];
+          final label = variant?.name ?? product?.name ?? 'Article inconnu';
+          final sku = variant?.sku ?? product?.sku;
+          final barcode = variant?.barcode ?? product?.barcode;
+          return StockEntry(
+            label: label,
+            sku: sku,
+            barcode: barcode,
+            quantity: row.quantity,
+            isVariant: variant != null,
+            location: _locationLabel(db.decodeRaw(row.rawJson)),
+          );
+        })
+        .where(
+          (entry) =>
+              normalized.isEmpty ||
+              entry.label.toLowerCase().contains(normalized) ||
+              (entry.sku?.toLowerCase().contains(normalized) ?? false) ||
+              (entry.barcode?.toLowerCase().contains(normalized) ?? false),
+        )
+        .toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+  }
+}
+
+class StockEntry {
+  const StockEntry({
+    required this.label,
+    required this.sku,
+    required this.barcode,
+    required this.quantity,
+    required this.isVariant,
+    required this.location,
+  });
+
+  final String label;
+  final String? sku;
+  final String? barcode;
+  final double quantity;
+  final bool isVariant;
+  final String? location;
 }
 
 int _requiredInt(Object? value, String field) =>
@@ -454,3 +674,11 @@ double _double(Object? value) => double.tryParse('$value') ?? 0;
 double? _nullableDouble(Object? value) => value == null ? null : _double(value);
 int? _stockShopId(Map<String, dynamic> row) =>
     _int(row['shop_id']) ?? _int((row['location'] as Map?)?['shop_id']);
+
+String? _locationLabel(Map<String, dynamic> row) {
+  final location = row['location'];
+  if (location is Map) {
+    return location['name'] as String? ?? location['code'] as String?;
+  }
+  return row['stock_location_name'] as String?;
+}

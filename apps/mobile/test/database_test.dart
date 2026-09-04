@@ -131,6 +131,29 @@ void main() {
     );
   });
 
+  test('filters products strictly by shop', () async {
+    await _writeSnapshot(local, shopId: 10, productName: 'Riz boutique 10');
+    await _writeSnapshot(
+      local,
+      shopId: 11,
+      productId: 102,
+      productName: 'Riz boutique 11',
+    );
+
+    final products = await CatalogueLocalRepository(database)
+        .searchProducts('', 1, 10);
+    expect(products.single.name, 'Riz boutique 10');
+  });
+
+  test('filters products by category', () async {
+    await _writeSnapshot(local);
+    expect(
+      await CatalogueLocalRepository(database)
+          .searchProducts('', 1, 10, categoryId: 99),
+      isEmpty,
+    );
+  });
+
   test('searches customers by name and phone', () async {
     await _writeSnapshot(local);
     final repository = CustomerLocalRepository(database);
@@ -139,6 +162,65 @@ void main() {
     expect(
       (await repository.searchCustomers('7700', 1, 10)).single.name,
       'Awa Ndiaye',
+    );
+  });
+
+  test('searches customers by email', () async {
+    await _writeSnapshot(local);
+    expect(
+      (await CustomerLocalRepository(
+        database,
+      ).searchCustomers('example.test', 1, 10)).single.id,
+      200,
+    );
+  });
+
+  test('keeps product and variant stock aggregation separate', () async {
+    await _writeSnapshot(
+      local,
+      stock: [
+        {
+          'stock_location_id': 50,
+          'shop_id': 10,
+          'product_id': 100,
+          'quantity': 12,
+        },
+        {
+          'stock_location_id': 51,
+          'shop_id': 10,
+          'product_id': 100,
+          'variant_id': 101,
+          'quantity': 4,
+        },
+        {
+          'stock_location_id': 52,
+          'shop_id': 10,
+          'product_id': 100,
+          'variant_id': 101,
+          'quantity': 3,
+        },
+      ],
+    );
+    final repository = StockLocalRepository(database);
+    expect(
+      await repository.productQuantity(
+        organizationId: 1,
+        shopId: 10,
+        productId: 100,
+      ),
+      12,
+    );
+    expect(
+      await repository.variantQuantity(
+        organizationId: 1,
+        shopId: 10,
+        variantId: 101,
+      ),
+      7,
+    );
+    expect(
+      await CatalogueLocalRepository(database).productStockById(1, 10, [100]),
+      {100: 12},
     );
   });
 
@@ -178,11 +260,14 @@ void main() {
 Future<void> _writeSnapshot(
   BootstrapLocalRepository local, {
   int organizationId = 1,
+  int shopId = 10,
+  int productId = 100,
   String productName = 'Riz',
+  List<Map<String, dynamic>>? stock,
 }) {
   return local.replaceSnapshot(
     organizationId: organizationId,
-    shopId: 10,
+    shopId: shopId,
     entitlements: Entitlements.fromJson({
       'entitlements': [
         {'slug': 'pos.sell'},
@@ -197,13 +282,13 @@ Future<void> _writeSnapshot(
     ],
     products: [
       Product(
-        id: 100,
+        id: productId,
         name: productName,
         salePrice: 1500,
         raw: {
-          'id': 100,
+          'id': productId,
           'name': productName,
-          'shop_id': 10,
+          'shop_id': shopId,
           'category_id': 1,
           'sku': 'RIZ-1',
           'barcode': '123456',
@@ -215,14 +300,14 @@ Future<void> _writeSnapshot(
     ],
     variants: [
       ProductVariant(
-        id: 101,
-        productId: 100,
+        id: productId + 1,
+        productId: productId,
         name: 'Sac 5 kg',
         salePrice: 7000,
         raw: {
-          'id': 101,
-          'product_id': 100,
-          'shop_id': 10,
+          'id': productId + 1,
+          'product_id': productId,
+          'shop_id': shopId,
           'name': 'Sac 5 kg',
           'sku': 'RIZ-5KG',
           'barcode': '654321',
@@ -239,7 +324,7 @@ Future<void> _writeSnapshot(
         email: 'awa@example.test',
         raw: {
           'id': 200,
-          'shop_id': 10,
+          'shop_id': shopId,
           'name': 'Awa Ndiaye',
           'phone': '770000000',
           'email': 'awa@example.test',
@@ -247,17 +332,19 @@ Future<void> _writeSnapshot(
         },
       ),
     ],
-    stock: [
-      {
-        'stock_location_id': 50,
-        'shop_id': 10,
-        'product_id': 100,
-        'quantity': 12,
-        'reserved_quantity': 1,
-      },
-    ],
+    stock:
+        stock ??
+        [
+          {
+            'stock_location_id': 50,
+            'shop_id': shopId,
+            'product_id': productId,
+            'quantity': 12,
+            'reserved_quantity': 1,
+          },
+        ],
     sessions: [
-      {'id': 300, 'shop_id': 10, 'terminal_id': 20, 'status': 'open'},
+      {'id': 300, 'shop_id': shopId, 'terminal_id': 20, 'status': 'open'},
     ],
   );
 }
