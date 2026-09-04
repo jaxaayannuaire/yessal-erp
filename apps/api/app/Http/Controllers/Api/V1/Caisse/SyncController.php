@@ -83,6 +83,7 @@ class SyncController extends Controller
             $organizationId,
             (int) $data['device_id'],
             $data['events'],
+			(int) $request->user()->id,
 			$activity
         );
 
@@ -91,6 +92,7 @@ class SyncController extends Controller
             'accepted' => $result['accepted'],
             'rejected' => $result['rejected'],
             'conflicts' => $result['conflicts'],
+            'failed' => $result['failed'],
         ]);
     }
 

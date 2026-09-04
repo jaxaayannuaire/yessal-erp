@@ -6,6 +6,21 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-04 — Replay des ventes offline
+
+### Synchronisation métier
+
+- Les événements `sale.create` complets sont désormais rejoués transactionnellement : vente, lignes, paiement cash et finalisation utilisent les services métier Caisse existants.
+- Une finalisation offline applique les mêmes contrôles de session et de stock, crée les mouvements `sale_out`, puis publie un unique changement `sale` avec l’appareil source.
+- `SyncEvent` conserve le résultat (`sale_id`, statut) et passe à `applied`, `conflict`, `rejected` ou `failed`; un retry de `event_uuid` appliqué ne rejoue aucun effet métier.
+
+### Limites
+
+- Le paiement offline est limité au cash ; Wave, carte et mobile money sont rejetés sans simulation fournisseur.
+- Les conflits de stock insuffisant restaurent intégralement l’état métier. Les anciens événements sans contrat `sale.create` complet restent journalisés `pending` pour compatibilité.
+
+---
+
 ## 2026-09-04 — Sync offline incrémental
 
 ### Protocole de synchronisation
