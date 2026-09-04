@@ -4,6 +4,7 @@ namespace App\Models\Caisse;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SalePayment extends Model
 {
@@ -14,4 +15,5 @@ class SalePayment extends Model
     protected $casts = ['amount'=>'integer','change_amount'=>'integer','declared_at'=>'datetime','confirmed_at'=>'datetime'];
 
     public function sale(): BelongsTo { return $this->belongsTo(Sale::class); }
+    public function refunds(): HasMany { return $this->hasMany(SaleReturn::class, 'sale_payment_id'); }
 }

@@ -6,6 +6,22 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-04 — Remboursements Caisse
+
+### Remboursements financiers
+
+- Ajout des remboursements cash total ou partiel d'une vente finalisée ou annulée, tracés par `SaleReturn` et rattachés au paiement source.
+- Un remboursement cash crée un mouvement `refund` dans la session de caisse ouverte ; les sessions fermées ne sont jamais rouvertes.
+- L'annulation et la restauration de stock restent indépendantes du remboursement financier. Une vente finalisée totalement remboursée devient `refunded` ; une vente annulée conserve son statut.
+
+### Sécurité et reporting
+
+- Ajout de la permission `sales.refund`, attribuée aux administrateurs et managers, avec isolation stricte par organisation et paiement source.
+- Le reporting expose le brut, les remboursements et le net de période. Les moyens non cash restent refusés tant qu'aucune confirmation fournisseur n'est disponible.
+- Validation : 377 tests, 1 162 assertions, 0 échec.
+
+---
+
 ## 2026-09-04 — Mouvements de caisse métier
 
 ### Mouvements et sessions

@@ -64,6 +64,12 @@ class RbacSeeder extends Seeder
                     'slug' => 'sales.cancel',
                     'description' => 'Annuler une vente.',
                 ],
+                [
+                    'module' => 'sales',
+                    'name' => 'Rembourser une vente',
+                    'slug' => 'sales.refund',
+                    'description' => 'Enregistrer un remboursement de vente.',
+                ],
 
                 // Produits
                 [
@@ -229,6 +235,7 @@ class RbacSeeder extends Seeder
                     'sales.edit',
                     'sales.finalize',
                     'sales.cancel',
+                    'sales.refund',
                     'products.view',
                     'stock.view',
                     'customers.view',

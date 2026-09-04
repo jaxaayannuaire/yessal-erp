@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Caisse\DeviceController;
 use App\Http\Controllers\Api\V1\Caisse\CashSessionController;
 use App\Http\Controllers\Api\V1\Caisse\CashMovementController;
 use App\Http\Controllers\Api\V1\Caisse\SaleController;
+use App\Http\Controllers\Api\V1\Caisse\SaleRefundController;
 use App\Http\Controllers\Api\V1\Caisse\PaymentController as CaissePaymentController;
 use App\Http\Controllers\Api\V1\Caisse\StockController;
 use App\Http\Controllers\Api\V1\Caisse\SyncController;
@@ -496,6 +497,20 @@ Route::prefix('v1')->group(function () {
                 )
                     ->middleware('permission:sales.cancel')
                     ->name('sales.cancel');
+
+                Route::get(
+                    'sales/{sale}/refunds',
+                    [SaleRefundController::class, 'index']
+                )
+                    ->middleware('permission:sales.view')
+                    ->name('sales.refunds.index');
+
+                Route::post(
+                    'sales/{sale}/refund',
+                    [SaleRefundController::class, 'store']
+                )
+                    ->middleware('permission:sales.refund')
+                    ->name('sales.refund');
 
 
                 /*

@@ -7,6 +7,7 @@ use App\Models\Caisse\CashMovement;
 use App\Models\Caisse\Customer;
 use App\Models\Caisse\Sale;
 use App\Models\Caisse\SalePayment;
+use App\Models\Caisse\SaleReturn;
 use App\Models\Caisse\Shop;
 use App\Models\Caisse\StockLevel;
 use App\Models\Organization;
@@ -30,11 +31,13 @@ class ReportingService
             $to,
             $shopId
         )->sum('sale_payments.amount');
+        $refunds = $this->refundMetrics($organization, $from, $to, $shopId);
 
         return [
             'sales' => [
                 'count' => $salesCount,
                 'gross_amount' => $grossAmount,
+                'net_amount' => $grossAmount - $refunds['amount'],
                 'paid_amount' => (int) $paidAmount,
                 'cancelled_count' => $this->cancelledSalesQuery(
                     $organization,
@@ -52,6 +55,7 @@ class ReportingService
                 $to,
                 $shopId
             ),
+            'refunds' => $refunds,
             'cash_sessions' => $this->cashSessionMetrics(
                 $organization,
                 $from,
@@ -80,7 +84,7 @@ class ReportingService
     ): Builder {
         return Sale::query()
             ->where('organization_id', $organization->id)
-            ->where('status', 'finalized')
+            ->whereIn('status', ['finalized', 'refunded'])
             ->whereBetween('finalized_at', [$from, $to])
             ->when($shopId, fn ($query) => $query->where('shop_id', $shopId));
     }
@@ -107,7 +111,7 @@ class ReportingService
         return SalePayment::query()
             ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
             ->where('sales.organization_id', $organization->id)
-            ->where('sales.status', 'finalized')
+            ->whereIn('sales.status', ['finalized', 'refunded'])
             ->whereBetween('sales.finalized_at', [$from, $to])
             ->where('sale_payments.status', 'confirmed')
             ->when($shopId, fn ($query) => $query->where('sales.shop_id', $shopId));
@@ -157,6 +161,26 @@ class ReportingService
             'closing_amount_total' => (int) ((clone $sessions)
                 ->where('status', 'closed')
                 ->sum('counted_amount') ?? 0),
+        ];
+    }
+
+    private function refundMetrics(
+        Organization $organization,
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        ?int $shopId
+    ): array {
+        $refunds = SaleReturn::query()
+            ->join('sales', 'sales.id', '=', 'sale_returns.sale_id')
+            ->where('sale_returns.organization_id', $organization->id)
+            ->where('sales.organization_id', $organization->id)
+            ->where('sale_returns.status', 'completed')
+            ->whereBetween('sale_returns.created_at', [$from, $to])
+            ->when($shopId, fn ($query) => $query->where('sales.shop_id', $shopId));
+
+        return [
+            'count' => (int) (clone $refunds)->count(),
+            'amount' => (int) ((clone $refunds)->sum('sale_returns.amount') ?? 0),
         ];
     }
 
