@@ -12,6 +12,8 @@ import 'core/models/caisse_models.dart';
 import 'core/storage/local_cache_store.dart';
 import 'core/storage/token_storage.dart';
 import 'features/catalogue/local_catalogue_screens.dart';
+import 'features/sales/sale_repository.dart';
+import 'features/sales/sales_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +29,13 @@ void main() {
   );
   api.onUnauthorized = session.expireSession;
 
-  runApp(YessalCaisseApp(session: session, database: database));
+  runApp(
+    YessalCaisseApp(
+      session: session,
+      database: database,
+      sales: SaleRepository(api),
+    ),
+  );
 }
 
 class YessalCaisseApp extends StatefulWidget {
@@ -35,10 +43,12 @@ class YessalCaisseApp extends StatefulWidget {
     super.key,
     required this.session,
     required this.database,
+    required this.sales,
   });
 
   final AppSession session;
   final AppDatabase database;
+  final SaleRepository sales;
 
   @override
   State<YessalCaisseApp> createState() => _YessalCaisseAppState();
@@ -107,7 +117,11 @@ class _YessalCaisseAppState extends State<YessalCaisseApp> {
       );
     }
 
-    return HomeScreen(session: session, database: widget.database);
+    return HomeScreen(
+      session: session,
+      database: widget.database,
+      sales: widget.sales,
+    );
   }
 }
 
@@ -278,10 +292,16 @@ class _FutureSelectionScreenState extends State<FutureSelectionScreen> {
 }
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.session, required this.database});
+  const HomeScreen({
+    super.key,
+    required this.session,
+    required this.database,
+    required this.sales,
+  });
 
   final AppSession session;
   final AppDatabase database;
+  final SaleRepository sales;
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +337,18 @@ class HomeScreen extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _shortcut(context, 'Vente'),
+                _shortcut(
+                  context,
+                  'Vente',
+                  () => _open(
+                    context,
+                    SalesScreen(
+                      session: session,
+                      database: database,
+                      repository: sales,
+                    ),
+                  ),
+                ),
                 _shortcut(
                   context,
                   'Produits',

@@ -59,6 +59,21 @@ hors périmètre de cette fondation. Une implémentation Drift pourra remplacer
 
 ## Limites connues
 
+## Vente cash en ligne
+
+Le parcours Vente utilise le catalogue Drift pour composer un panier en mémoire,
+puis crée une vente, enregistre un paiement cash et finalise la vente via l'API.
+Le serveur reste la source de vérité pour les prix, le paiement, la session de
+caisse et le stock. Le stock local est seulement indicatif. Aucune vente n'est
+stockée hors ligne, ni rejouée : une connexion est requise au moment de la
+soumission. Après une finalisation réussie, le bootstrap rafraîchit Drift.
+
+- une coupure avant paiement conserve l'identifiant de vente en mémoire pour
+  reprendre la même tentative ;
+- aucune outbox ni vente offline n'est créée à ce stade ;
+- la recherche et le panier restent utilisables localement, mais la validation
+  finale exige l'API.
+
 - le bootstrap initial utilise les endpoints REST ; `sync/pull` n'est pas un
   bootstrap complet ;
 - les variantes sont chargées par `GET /products/{product}/variants` : le
