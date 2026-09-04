@@ -132,6 +132,12 @@ class RbacSeeder extends Seeder
                     'slug' => 'cash.movements.view',
                     'description' => 'Consulter les mouvements de caisse.',
                 ],
+                [
+                    'module' => 'cash',
+                    'name' => 'Gérer les mouvements de caisse',
+                    'slug' => 'cash.movements.manage',
+                    'description' => 'Enregistrer les entrées et sorties de caisse.',
+                ],
 
                 // Appareils
                 [
@@ -231,6 +237,7 @@ class RbacSeeder extends Seeder
                     'cash.close',
                     'cash.view',
                     'cash.movements.view',
+                    'cash.movements.manage',
                     'devices.view',
                     'devices.manage',
                     'sync.push',

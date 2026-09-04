@@ -3,6 +3,7 @@
 namespace App\Services\Caisse;
 
 use App\Models\Caisse\CashSession;
+use App\Models\Caisse\CashMovement;
 use App\Models\Caisse\Customer;
 use App\Models\Caisse\Sale;
 use App\Models\Caisse\SalePayment;
@@ -52,6 +53,12 @@ class ReportingService
                 $shopId
             ),
             'cash_sessions' => $this->cashSessionMetrics(
+                $organization,
+                $from,
+                $to,
+                $shopId
+            ),
+            'cash_movements' => $this->cashMovementMetrics(
                 $organization,
                 $from,
                 $to,
@@ -174,6 +181,43 @@ class ReportingService
         return [
             'products_with_stock' => $productsWithStock + $variantsWithStock,
             'total_units' => (float) ((clone $levels)->sum('quantity') ?? 0),
+        ];
+    }
+
+    private function cashMovementMetrics(
+        Organization $organization,
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        ?int $shopId
+    ): array {
+        $movements = CashMovement::query()
+            ->join(
+                'cash_sessions',
+                'cash_sessions.id',
+                '=',
+                'cash_movements.cash_session_id'
+            )
+            ->where('cash_movements.organization_id', $organization->id)
+            ->where('cash_sessions.organization_id', $organization->id)
+            ->whereIn('cash_movements.type', ['cash_in', 'cash_out'])
+            ->whereBetween('cash_movements.created_at', [$from, $to])
+            ->when(
+                $shopId,
+                fn ($query) => $query->where('cash_sessions.shop_id', $shopId)
+            );
+
+        $cashInAmount = (int) ((clone $movements)
+            ->where('cash_movements.type', 'cash_in')
+            ->sum('cash_movements.amount') ?? 0);
+        $cashOutAmount = (int) ((clone $movements)
+            ->where('cash_movements.type', 'cash_out')
+            ->sum('cash_movements.amount') ?? 0);
+
+        return [
+            'cash_in_amount' => $cashInAmount,
+            'cash_out_amount' => $cashOutAmount,
+            'count' => (int) $movements->count(),
+            'net_amount' => $cashInAmount - $cashOutAmount,
         ];
     }
 

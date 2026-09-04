@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Caisse\ProductVariantController;
 use App\Http\Controllers\Api\V1\Caisse\TerminalController;
 use App\Http\Controllers\Api\V1\Caisse\DeviceController;
 use App\Http\Controllers\Api\V1\Caisse\CashSessionController;
+use App\Http\Controllers\Api\V1\Caisse\CashMovementController;
 use App\Http\Controllers\Api\V1\Caisse\SaleController;
 use App\Http\Controllers\Api\V1\Caisse\PaymentController as CaissePaymentController;
 use App\Http\Controllers\Api\V1\Caisse\StockController;
@@ -432,6 +433,20 @@ Route::prefix('v1')->group(function () {
                 )
                     ->middleware('permission:cash.view')
                     ->name('cash-sessions.show');
+
+                Route::get(
+                    'cash-sessions/{cashSession}/movements',
+                    [CashMovementController::class, 'index']
+                )
+                    ->middleware('permission:cash.movements.view')
+                    ->name('cash-sessions.movements.index');
+
+                Route::post(
+                    'cash-sessions/{cashSession}/movements',
+                    [CashMovementController::class, 'store']
+                )
+                    ->middleware('permission:cash.movements.manage')
+                    ->name('cash-sessions.movements.store');
 
                 Route::post(
                     'cash-sessions/{cashSession}/close',

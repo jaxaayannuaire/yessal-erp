@@ -66,6 +66,7 @@ Yessal Caisse
 | Vente | ✅ Réalisé |
 | Paiement | ✅ Réalisé |
 | Cash Session | ✅ Réalisé |
+| Mouvements de caisse | ✅ Réalisé |
 | Synchronisation | ✅ Réalisé |
 | Isolation multi-tenant | ✅ Réalisé |
 | Scheduler | ✅ Réalisé |

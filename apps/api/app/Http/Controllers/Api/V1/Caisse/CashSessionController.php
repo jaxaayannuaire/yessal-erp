@@ -107,6 +107,9 @@ class CashSessionController extends Controller
 
         return response()->json([
             'success' => true,
+            'theoretical_amount' => $this->cashSessions->calculateExpected(
+                $cashSession
+            ),
             'cash_session' => $cashSession->load([
                 'shop',
                 'terminal',
@@ -143,6 +146,7 @@ class CashSessionController extends Controller
 
         return response()->json([
             'success' => true,
+            'theoretical_amount' => $session->expected_amount,
             'message' => 'Session de caisse fermée avec succès.',
             'cash_session' => $session->fresh()->load([
                 'shop',

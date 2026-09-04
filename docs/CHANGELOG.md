@@ -6,6 +6,22 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-04 — Mouvements de caisse métier
+
+### Mouvements et sessions
+
+- Ajout des entrées et sorties manuelles de caisse, rattachées à une session ouverte avec montant positif, motif obligatoire et auteur serveur.
+- Les mouvements sont protégés par `cash.movements.view` en lecture et `cash.movements.manage` en écriture, avec isolation stricte par organisation.
+- Le montant théorique d'une session inclut le fonds d'ouverture, les paiements espèces et les mouvements manuels ; la clôture conserve son calcul d'écart existant.
+
+### Reporting et tests
+
+- Le reporting Caisse expose les entrées, sorties, nombre et solde net des mouvements manuels, filtrables par période et boutique.
+- Validation : 369 tests, 1 120 assertions, 0 échec.
+- Les remboursements financiers et l'idempotence offline des mouvements manuels restent hors périmètre.
+
+---
+
 ## 2026-09-04 — Reporting Caisse minimal
 
 ### Synthèse opérationnelle
