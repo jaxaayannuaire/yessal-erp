@@ -1,149 +1,324 @@
 import 'package:flutter/material.dart';
 
-import 'core/services/auth_service.dart';
-import 'models/user.dart';
-import 'screens/auth/login_screen.dart';
+import 'app/app_session.dart';
+import 'core/api/api_client.dart';
+import 'core/auth/auth_repository.dart';
+import 'core/bootstrap/bootstrap_repository.dart';
+import 'core/models/caisse_models.dart';
+import 'core/storage/local_cache_store.dart';
+import 'core/storage/token_storage.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const YessalApp());
+  final tokens = TokenStorage();
+  final api = ApiClient(tokenStorage: tokens);
+  final cache = LocalCacheStore();
+  final session = AppSession(
+    api,
+    AuthRepository(api, tokens),
+    BootstrapRepository(api, cache),
+    cache,
+  );
+  api.onUnauthorized = session.expireSession;
+
+  runApp(YessalCaisseApp(session: session));
 }
 
-class YessalApp extends StatelessWidget {
-  const YessalApp({super.key});
+class YessalCaisseApp extends StatefulWidget {
+  const YessalCaisseApp({super.key, required this.session});
+
+  final AppSession session;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Yessal ERP',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-        ),
-        useMaterial3: true,
-      ),
-      home: const AppInitializer(),
-    );
-  }
+  State<YessalCaisseApp> createState() => _YessalCaisseAppState();
 }
 
-class AppInitializer extends StatefulWidget {
-  const AppInitializer({super.key});
-
-  @override
-  State<AppInitializer> createState() => _AppInitializerState();
-}
-
-class _AppInitializerState extends State<AppInitializer> {
-  final _authService = AuthService();
-
-  bool _isLoading = true;
-  User? _user;
-
+class _YessalCaisseAppState extends State<YessalCaisseApp> {
   @override
   void initState() {
     super.initState();
-    _restoreSession();
+    widget.session.restore();
   }
 
-  Future<void> _restoreSession() async {
-    final user = await _authService.me();
-
-    if (!mounted) return;
-
-    setState(() {
-      _user = user;
-      _isLoading = false;
-    });
-  }
-
-  void _handleLogin(User user) {
-    setState(() {
-      _user = user;
-    });
-  }
-
-  Future<void> _handleLogout() async {
-    await _authService.logout();
-
-    if (!mounted) return;
-
-    setState(() {
-      _user = null;
-    });
+  @override
+  void dispose() {
+    widget.session.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_user == null) {
-      return LoginScreen(
-        onLogin: _handleLogin,
-      );
-    }
-
-    return DashboardScreen(
-      user: _user!,
-      onLogout: _handleLogout,
+    return AnimatedBuilder(
+      animation: widget.session,
+      builder: (_, _) {
+        return MaterialApp(
+          title: 'Yessal Caisse',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xff0b6b53),
+            ),
+            useMaterial3: true,
+          ),
+          home: _route(widget.session),
+        );
+      },
     );
+  }
+
+  Widget _route(AppSession session) {
+    if (session.isLoading) {
+      return const _Loading();
+    }
+    if (session.user == null) {
+      return LoginScreen(session: session);
+    }
+    if (session.organization == null) {
+      return SelectionScreen(
+        title: 'Organisation',
+        items: session.organizations,
+        choose: (item) => session.selectOrganization(item as Organization),
+      );
+    }
+    if (session.shop == null) {
+      return FutureSelectionScreen(
+        title: 'Boutique',
+        load: session.availableShops,
+        choose: (item) => session.selectShop(item as CaisseEntity),
+      );
+    }
+    if (session.terminal == null) {
+      return FutureSelectionScreen(
+        title: 'Terminal',
+        load: session.availableTerminals,
+        choose: (item) => session.selectTerminal(item as CaisseEntity),
+      );
+    }
+
+    return HomeScreen(session: session);
   }
 }
 
-class DashboardScreen extends StatelessWidget {
-  final User user;
-  final Future<void> Function() onLogout;
+class _Loading extends StatelessWidget {
+  const _Loading();
 
-  const DashboardScreen({
-    super.key,
-    required this.user,
-    required this.onLogout,
-  });
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+}
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key, required this.session});
+
+  final AppSession session;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final email = TextEditingController();
+  final password = TextEditingController();
+  bool loading = false;
+
+  @override
+  void dispose() {
+    email.dispose();
+    password.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Yessal ERP'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await onLogout();
-            },
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.point_of_sale, size: 64),
+                const SizedBox(height: 16),
+                Text(
+                  'Yessal Caisse',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'E-mail'),
+                ),
+                TextField(
+                  controller: password,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Mot de passe'),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: loading ? null : _login,
+                  child: Text(loading ? 'Connexion…' : 'Se connecter'),
+                ),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _login() async {
+    setState(() => loading = true);
+    try {
+      await widget.session.login(email.text.trim(), password.text);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
+    }
+  }
+}
+
+class SelectionScreen extends StatelessWidget {
+  const SelectionScreen({
+    super.key,
+    required this.title,
+    required this.items,
+    required this.choose,
+  });
+
+  final String title;
+  final List<dynamic> items;
+  final Future<void> Function(dynamic) choose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Choisir $title')),
+      body: ListView(
+        children: items
+            .map(
+              (item) => ListTile(
+                title: Text(item.name),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => choose(item),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class FutureSelectionScreen extends StatefulWidget {
+  const FutureSelectionScreen({
+    super.key,
+    required this.title,
+    required this.load,
+    required this.choose,
+  });
+
+  final String title;
+  final Future<List<dynamic>> Function() load;
+  final Future<void> Function(dynamic) choose;
+
+  @override
+  State<FutureSelectionScreen> createState() => _FutureSelectionScreenState();
+}
+
+class _FutureSelectionScreenState extends State<FutureSelectionScreen> {
+  late final Future<List<dynamic>> future = widget.load();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<dynamic>>(
+      future: future,
+      builder: (_, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text(
+                'Impossible de charger ${widget.title.toLowerCase()}',
+              ),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const _Loading();
+        }
+
+        return SelectionScreen(
+          title: widget.title,
+          items: snapshot.data!,
+          choose: widget.choose,
+        );
+      },
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key, required this.session});
+
+  final AppSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCaisseAllowed =
+        session.bootstrapData?.entitlements.allowed ?? false;
+    final statusLabel = session.isOffline
+        ? 'Mode hors ligne limité'
+        : isCaisseAllowed
+        ? 'Caisse autorisée'
+        : 'Accès Caisse bloqué';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Yessal Caisse'),
+        actions: [
+          IconButton(icon: const Icon(Icons.logout), onPressed: session.logout),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.account_circle,
-                size: 100,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Bienvenue ${user.name}',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 8),
-              Text(user.email),
-              const SizedBox(height: 32),
-              const Text(
-                'Connexion API Laravel réussie.',
-              ),
-            ],
-          ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              session.organization!.name,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            Text('${session.shop!.name} • ${session.terminal!.name}'),
+            const SizedBox(height: 12),
+            Chip(label: Text(statusLabel)),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children:
+                  [
+                        'Vente',
+                        'Produits',
+                        'Clients',
+                        'Stock',
+                        'Caisse',
+                        'Rapports',
+                      ]
+                      .map(
+                        (label) =>
+                            ActionChip(label: Text(label), onPressed: () {}),
+                      )
+                      .toList(),
+            ),
+          ],
         ),
       ),
     );
