@@ -6,6 +6,21 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-04 — Clients / Tiers Caisse
+
+### API et ventes
+
+- Ajout de l'API Client Caisse : CRUD, recherche par nom, téléphone ou e-mail, et historique paginé des ventes.
+- Le rattachement d'un client à une vente est facultatif ; les ventes comptoir restent prises en charge.
+- Seuls les clients actifs de l'organisation courante peuvent être associés à une nouvelle vente ; les ventes existantes, y compris annulées, restent visibles dans l'historique.
+
+### Sécurité et tests
+
+- Les routes utilisent `customers.view` et `customers.manage`, avec isolation stricte par organisation et boutique.
+- Validation : 359 tests, 1 034 assertions, 0 échec.
+
+---
+
 ## 2026-09-03 — Catégories et variantes Produits
 
 ### API catalogue

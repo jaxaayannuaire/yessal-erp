@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Caisse;
 
 use App\Http\Controllers\Controller;
 use App\Models\Caisse\CashSession;
+use App\Models\Caisse\Customer;
 use App\Models\Caisse\Sale;
 use App\Models\Caisse\Shop;
 use App\Models\Caisse\Terminal;
@@ -180,6 +181,25 @@ class SaleController extends Controller
                     'La session de caisse doit être ouverte.',
                 ],
             ]);
+        }
+
+        if (isset($validated['customer_id'])) {
+            $customer = Customer::query()
+                ->whereKey($validated['customer_id'])
+                ->where('status', 'active')
+                ->whereHas('shop', fn ($query) => $query->where(
+                    'organization_id',
+                    $organizationId
+                ))
+                ->first();
+
+            if (! $customer) {
+                throw ValidationException::withMessages([
+                    'customer_id' => [
+                        'Client introuvable, inactif ou inaccessible pour cette organisation.',
+                    ],
+                ]);
+            }
         }
 
         $data = $validated;

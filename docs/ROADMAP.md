@@ -54,6 +54,7 @@ Yessal Caisse
 | Quotas | ✅ Réalisé |
 | Shop | ✅ Réalisé |
 | Catalogue produits | ✅ Réalisé |
+| Clients / Tiers Caisse | ✅ Réalisé |
 | Terminal | ✅ Réalisé |
 | Device | ✅ Réalisé |
 | Device Activity | ✅ Réalisé |

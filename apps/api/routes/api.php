@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\EntitlementController;
 use App\Http\Controllers\Api\V1\Caisse\ShopController;
 use App\Http\Controllers\Api\V1\Caisse\CategoryController;
+use App\Http\Controllers\Api\V1\Caisse\CustomerController;
 use App\Http\Controllers\Api\V1\Caisse\ProductController;
 use App\Http\Controllers\Api\V1\Caisse\ProductVariantController;
 use App\Http\Controllers\Api\V1\Caisse\TerminalController;
@@ -155,6 +156,48 @@ Route::prefix('v1')->group(function () {
                 )
                     ->middleware('permission:shops.manage')
                     ->name('shops.update');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Clients
+                |--------------------------------------------------------------------------
+                */
+
+                Route::get(
+                    'customers',
+                    [CustomerController::class, 'index']
+                )
+                    ->middleware('permission:customers.view')
+                    ->name('customers.index');
+
+                Route::post(
+                    'customers',
+                    [CustomerController::class, 'store']
+                )
+                    ->middleware('permission:customers.manage')
+                    ->name('customers.store');
+
+                Route::get(
+                    'customers/{customer}',
+                    [CustomerController::class, 'show']
+                )
+                    ->middleware('permission:customers.view')
+                    ->name('customers.show');
+
+                Route::match(
+                    ['put', 'patch'],
+                    'customers/{customer}',
+                    [CustomerController::class, 'update']
+                )
+                    ->middleware('permission:customers.manage')
+                    ->name('customers.update');
+
+                Route::get(
+                    'customers/{customer}/sales',
+                    [CustomerController::class, 'sales']
+                )
+                    ->middleware('permission:customers.view')
+                    ->name('customers.sales');
 
                 /*
                 |--------------------------------------------------------------------------

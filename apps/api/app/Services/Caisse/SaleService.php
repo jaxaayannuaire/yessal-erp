@@ -111,14 +111,11 @@ class SaleService
                 }
 
                 $productName = $product?->name
-					?? $line['product_name_snapshot']
-					?? 'Produit';
-
-				$productSku = $product?->sku
-					?? $line['sku_snapshot'];
-
-				$productBarcode = $product?->barcode
-					?? $line['barcode_snapshot'];
+                    ?? ($line['product_name_snapshot'] ?? 'Produit');
+                $productSku = $product?->sku
+                    ?? ($line['sku_snapshot'] ?? null);
+                $productBarcode = $product?->barcode
+                    ?? ($line['barcode_snapshot'] ?? null);
 
                 $sale->lines()->create([
                     'product_id' => $variant ? null : $product?->id,
