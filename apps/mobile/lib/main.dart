@@ -11,6 +11,9 @@ import 'core/database/local_repositories.dart';
 import 'core/models/caisse_models.dart';
 import 'core/storage/local_cache_store.dart';
 import 'core/storage/token_storage.dart';
+import 'core/sync/outbox_repository.dart';
+import 'core/sync/sync_screen.dart';
+import 'core/sync/sync_outbox_service.dart';
 import 'features/catalogue/local_catalogue_screens.dart';
 import 'features/sales/sale_repository.dart';
 import 'features/sales/sales_screen.dart';
@@ -21,10 +24,14 @@ void main() {
   final api = ApiClient(tokenStorage: tokens);
   final cache = LocalCacheStore();
   final database = AppDatabase.defaults();
+  final bootstrap = BootstrapRepository(
+    api,
+    BootstrapLocalRepository(database),
+  );
   final session = AppSession(
     api,
     AuthRepository(api, tokens),
-    BootstrapRepository(api, BootstrapLocalRepository(database)),
+    bootstrap,
     cache,
   );
   api.onUnauthorized = session.expireSession;
@@ -34,6 +41,11 @@ void main() {
       session: session,
       database: database,
       sales: SaleRepository(api),
+      sync: SyncOutboxService(
+        api,
+        OutboxRepository(database),
+        bootstrap: bootstrap,
+      ),
     ),
   );
 }
@@ -44,11 +56,13 @@ class YessalCaisseApp extends StatefulWidget {
     required this.session,
     required this.database,
     required this.sales,
+    required this.sync,
   });
 
   final AppSession session;
   final AppDatabase database;
   final SaleRepository sales;
+  final SyncOutboxService sync;
 
   @override
   State<YessalCaisseApp> createState() => _YessalCaisseAppState();
@@ -121,6 +135,7 @@ class _YessalCaisseAppState extends State<YessalCaisseApp> {
       session: session,
       database: widget.database,
       sales: widget.sales,
+      sync: widget.sync,
     );
   }
 }
@@ -297,11 +312,13 @@ class HomeScreen extends StatelessWidget {
     required this.session,
     required this.database,
     required this.sales,
+    required this.sync,
   });
 
   final AppSession session;
   final AppDatabase database;
   final SaleRepository sales;
+  final SyncOutboxService sync;
 
   @override
   Widget build(BuildContext context) {
@@ -332,6 +349,12 @@ class HomeScreen extends StatelessWidget {
             Text('${session.shop!.name} • ${session.terminal!.name}'),
             const SizedBox(height: 12),
             Chip(label: Text(statusLabel)),
+            const SizedBox(height: 12),
+            SyncIndicator(
+              organizationId: session.organization!.id,
+              service: sync,
+              outbox: OutboxRepository(database),
+            ),
             const SizedBox(height: 20),
             Wrap(
               spacing: 8,
