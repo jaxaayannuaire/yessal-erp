@@ -20,6 +20,26 @@ enum OutboxStatus {
       );
 }
 
+enum OutboxFailureKind {
+  network('network'),
+  http('http'),
+  localPayloadInvalid('local_payload_invalid'),
+  protocolInvalid('protocol_invalid'),
+  businessConflict('business_conflict'),
+  businessRejected('business_rejected'),
+  serverProcessing('server_processing');
+
+  const OutboxFailureKind(this.databaseValue);
+  final String databaseValue;
+
+  static OutboxFailureKind? fromDatabaseValue(String? value) {
+    for (final kind in OutboxFailureKind.values) {
+      if (kind.databaseValue == value) return kind;
+    }
+    return null;
+  }
+}
+
 /// Immutable representation of an outbox row outside of Drift generated types.
 class OutboxEvent {
   const OutboxEvent({
@@ -38,6 +58,8 @@ class OutboxEvent {
     required this.lastAttemptAt,
     required this.lastError,
     required this.serverResultJson,
+    required this.failureKind,
+    required this.httpStatusCode,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -57,6 +79,8 @@ class OutboxEvent {
   final DateTime? lastAttemptAt;
   final String? lastError;
   final String? serverResultJson;
+  final OutboxFailureKind? failureKind;
+  final int? httpStatusCode;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -76,6 +100,8 @@ class OutboxEvent {
     lastAttemptAt: row.lastAttemptAt,
     lastError: row.lastError,
     serverResultJson: row.serverResultJson,
+    failureKind: OutboxFailureKind.fromDatabaseValue(row.failureKind),
+    httpStatusCode: row.httpStatusCode,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   );
@@ -122,6 +148,8 @@ class OutboxRepository {
             lastAttemptAt: const Value(null),
             lastError: const Value(null),
             serverResultJson: const Value(null),
+            failureKind: const Value(null),
+            httpStatusCode: const Value(null),
             createdAt: now,
             updatedAt: now,
           ),
@@ -228,6 +256,7 @@ class OutboxRepository {
       'UPDATE sync_outbox '
       'SET status = ?, attempt_count = attempt_count + 1, '
       'last_attempt_at = ?, last_error = NULL, updated_at = ? '
+      ', failure_kind = NULL, http_status_code = NULL '
       'WHERE id = ? AND organization_id = ? AND status = ?',
       variables: [
         Variable.withString(OutboxStatus.sending.databaseValue),
@@ -252,6 +281,7 @@ class OutboxRepository {
     from: OutboxStatus.sending,
     status: OutboxStatus.queued,
     lastError: error,
+    failureKind: OutboxFailureKind.network,
   );
 
   Future<OutboxEvent?> markApplied({
@@ -265,6 +295,7 @@ class OutboxRepository {
     status: OutboxStatus.applied,
     lastError: null,
     serverResultJson: serverResultJson,
+    failureKind: null,
   );
 
   Future<OutboxEvent?> markConflict({
@@ -279,6 +310,7 @@ class OutboxRepository {
     status: OutboxStatus.conflict,
     lastError: error,
     serverResultJson: serverResultJson,
+    failureKind: OutboxFailureKind.businessConflict,
   );
 
   Future<OutboxEvent?> markRejected({
@@ -293,6 +325,7 @@ class OutboxRepository {
     status: OutboxStatus.rejected,
     lastError: error,
     serverResultJson: serverResultJson,
+    failureKind: OutboxFailureKind.businessRejected,
   );
 
   Future<OutboxEvent?> markFailed({
@@ -300,6 +333,8 @@ class OutboxRepository {
     required int id,
     required String error,
     String? serverResultJson,
+    OutboxFailureKind? failureKind,
+    int? httpStatusCode,
   }) => _updateStatus(
     organizationId: organizationId,
     id: id,
@@ -307,7 +342,36 @@ class OutboxRepository {
     status: OutboxStatus.failed,
     lastError: error,
     serverResultJson: serverResultJson,
+    failureKind: failureKind,
+    httpStatusCode: httpStatusCode,
   );
+
+  Future<OutboxEvent?> requeueRetryableTechnicalFailure({
+    required int organizationId,
+    required int id,
+  }) async {
+    final now = _now();
+    final changed = await _database.customUpdate(
+      'UPDATE sync_outbox SET status = ?, updated_at = ? '
+      'WHERE id = ? AND organization_id = ? AND status = ? '
+      'AND failure_kind = ? AND (http_status_code = ? OR http_status_code = ? '
+      'OR (http_status_code >= ? AND http_status_code <= ?))',
+      variables: [
+        Variable.withString(OutboxStatus.queued.databaseValue),
+        Variable.withDateTime(now),
+        Variable.withInt(id),
+        Variable.withInt(organizationId),
+        Variable.withString(OutboxStatus.failed.databaseValue),
+        Variable.withString(OutboxFailureKind.http.databaseValue),
+        Variable.withInt(408),
+        Variable.withInt(429),
+        Variable.withInt(500),
+        Variable.withInt(599),
+      ],
+    );
+    if (changed == 0) return null;
+    return _required(organizationId, id);
+  }
 
   /// Releases events left in `sending` by an interrupted application process.
   Future<int> recoverInterruptedSending(int organizationId) {
@@ -335,6 +399,8 @@ class OutboxRepository {
     required OutboxStatus status,
     required String? lastError,
     String? serverResultJson,
+    OutboxFailureKind? failureKind,
+    int? httpStatusCode,
   }) async {
     final now = _now();
     final changed =
@@ -349,6 +415,8 @@ class OutboxRepository {
                 status: Value(status.databaseValue),
                 lastError: Value(lastError),
                 serverResultJson: Value(serverResultJson),
+                failureKind: Value(failureKind?.databaseValue),
+                httpStatusCode: Value(httpStatusCode),
                 updatedAt: Value(now),
               ),
             );

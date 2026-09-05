@@ -147,6 +147,8 @@ class SyncOutbox extends Table {
   DateTimeColumn get lastAttemptAt => dateTime().nullable()();
   TextColumn get lastError => text().nullable()();
   TextColumn get serverResultJson => text().nullable()();
+  TextColumn get failureKind => text().nullable()();
+  IntColumn get httpStatusCode => integer().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 
@@ -186,7 +188,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -196,6 +198,10 @@ class AppDatabase extends _$AppDatabase {
     },
     onUpgrade: (migrator, from, to) async {
       if (from < 2) await migrator.createTable(syncOutbox);
+      if (from < 3) {
+        await migrator.addColumn(syncOutbox, syncOutbox.failureKind);
+        await migrator.addColumn(syncOutbox, syncOutbox.httpStatusCode);
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');

@@ -4483,6 +4483,28 @@ class $SyncOutboxTable extends SyncOutbox
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _failureKindMeta = const VerificationMeta(
+    'failureKind',
+  );
+  @override
+  late final GeneratedColumn<String> failureKind = GeneratedColumn<String>(
+    'failure_kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _httpStatusCodeMeta = const VerificationMeta(
+    'httpStatusCode',
+  );
+  @override
+  late final GeneratedColumn<int> httpStatusCode = GeneratedColumn<int>(
+    'http_status_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -4522,6 +4544,8 @@ class $SyncOutboxTable extends SyncOutbox
     lastAttemptAt,
     lastError,
     serverResultJson,
+    failureKind,
+    httpStatusCode,
     createdAt,
     updatedAt,
   ];
@@ -4657,6 +4681,24 @@ class $SyncOutboxTable extends SyncOutbox
         ),
       );
     }
+    if (data.containsKey('failure_kind')) {
+      context.handle(
+        _failureKindMeta,
+        failureKind.isAcceptableOrUnknown(
+          data['failure_kind']!,
+          _failureKindMeta,
+        ),
+      );
+    }
+    if (data.containsKey('http_status_code')) {
+      context.handle(
+        _httpStatusCodeMeta,
+        httpStatusCode.isAcceptableOrUnknown(
+          data['http_status_code']!,
+          _httpStatusCodeMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -4746,6 +4788,14 @@ class $SyncOutboxTable extends SyncOutbox
         DriftSqlType.string,
         data['${effectivePrefix}server_result_json'],
       ),
+      failureKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}failure_kind'],
+      ),
+      httpStatusCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}http_status_code'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -4779,6 +4829,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
   final DateTime? lastAttemptAt;
   final String? lastError;
   final String? serverResultJson;
+  final String? failureKind;
+  final int? httpStatusCode;
   final DateTime createdAt;
   final DateTime updatedAt;
   const SyncOutboxData({
@@ -4797,6 +4849,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
     this.lastAttemptAt,
     this.lastError,
     this.serverResultJson,
+    this.failureKind,
+    this.httpStatusCode,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -4823,6 +4877,12 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
     }
     if (!nullToAbsent || serverResultJson != null) {
       map['server_result_json'] = Variable<String>(serverResultJson);
+    }
+    if (!nullToAbsent || failureKind != null) {
+      map['failure_kind'] = Variable<String>(failureKind);
+    }
+    if (!nullToAbsent || httpStatusCode != null) {
+      map['http_status_code'] = Variable<int>(httpStatusCode);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -4852,6 +4912,12 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
       serverResultJson: serverResultJson == null && nullToAbsent
           ? const Value.absent()
           : Value(serverResultJson),
+      failureKind: failureKind == null && nullToAbsent
+          ? const Value.absent()
+          : Value(failureKind),
+      httpStatusCode: httpStatusCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(httpStatusCode),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -4878,6 +4944,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
       lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
       lastError: serializer.fromJson<String?>(json['lastError']),
       serverResultJson: serializer.fromJson<String?>(json['serverResultJson']),
+      failureKind: serializer.fromJson<String?>(json['failureKind']),
+      httpStatusCode: serializer.fromJson<int?>(json['httpStatusCode']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -4901,6 +4969,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
       'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
       'lastError': serializer.toJson<String?>(lastError),
       'serverResultJson': serializer.toJson<String?>(serverResultJson),
+      'failureKind': serializer.toJson<String?>(failureKind),
+      'httpStatusCode': serializer.toJson<int?>(httpStatusCode),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -4922,6 +4992,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
     Value<DateTime?> lastAttemptAt = const Value.absent(),
     Value<String?> lastError = const Value.absent(),
     Value<String?> serverResultJson = const Value.absent(),
+    Value<String?> failureKind = const Value.absent(),
+    Value<int?> httpStatusCode = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => SyncOutboxData(
@@ -4944,6 +5016,10 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
     serverResultJson: serverResultJson.present
         ? serverResultJson.value
         : this.serverResultJson,
+    failureKind: failureKind.present ? failureKind.value : this.failureKind,
+    httpStatusCode: httpStatusCode.present
+        ? httpStatusCode.value
+        : this.httpStatusCode,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -4978,6 +5054,12 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
       serverResultJson: data.serverResultJson.present
           ? data.serverResultJson.value
           : this.serverResultJson,
+      failureKind: data.failureKind.present
+          ? data.failureKind.value
+          : this.failureKind,
+      httpStatusCode: data.httpStatusCode.present
+          ? data.httpStatusCode.value
+          : this.httpStatusCode,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -5001,6 +5083,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('lastError: $lastError, ')
           ..write('serverResultJson: $serverResultJson, ')
+          ..write('failureKind: $failureKind, ')
+          ..write('httpStatusCode: $httpStatusCode, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -5024,6 +5108,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
     lastAttemptAt,
     lastError,
     serverResultJson,
+    failureKind,
+    httpStatusCode,
     createdAt,
     updatedAt,
   );
@@ -5046,6 +5132,8 @@ class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
           other.lastAttemptAt == this.lastAttemptAt &&
           other.lastError == this.lastError &&
           other.serverResultJson == this.serverResultJson &&
+          other.failureKind == this.failureKind &&
+          other.httpStatusCode == this.httpStatusCode &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -5066,6 +5154,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
   final Value<DateTime?> lastAttemptAt;
   final Value<String?> lastError;
   final Value<String?> serverResultJson;
+  final Value<String?> failureKind;
+  final Value<int?> httpStatusCode;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const SyncOutboxCompanion({
@@ -5084,6 +5174,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
     this.lastAttemptAt = const Value.absent(),
     this.lastError = const Value.absent(),
     this.serverResultJson = const Value.absent(),
+    this.failureKind = const Value.absent(),
+    this.httpStatusCode = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -5103,6 +5195,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
     this.lastAttemptAt = const Value.absent(),
     this.lastError = const Value.absent(),
     this.serverResultJson = const Value.absent(),
+    this.failureKind = const Value.absent(),
+    this.httpStatusCode = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
   }) : organizationId = Value(organizationId),
@@ -5132,6 +5226,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
     Expression<DateTime>? lastAttemptAt,
     Expression<String>? lastError,
     Expression<String>? serverResultJson,
+    Expression<String>? failureKind,
+    Expression<int>? httpStatusCode,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -5151,6 +5247,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
       if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
       if (lastError != null) 'last_error': lastError,
       if (serverResultJson != null) 'server_result_json': serverResultJson,
+      if (failureKind != null) 'failure_kind': failureKind,
+      if (httpStatusCode != null) 'http_status_code': httpStatusCode,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -5172,6 +5270,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
     Value<DateTime?>? lastAttemptAt,
     Value<String?>? lastError,
     Value<String?>? serverResultJson,
+    Value<String?>? failureKind,
+    Value<int?>? httpStatusCode,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
@@ -5191,6 +5291,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       lastError: lastError ?? this.lastError,
       serverResultJson: serverResultJson ?? this.serverResultJson,
+      failureKind: failureKind ?? this.failureKind,
+      httpStatusCode: httpStatusCode ?? this.httpStatusCode,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -5244,6 +5346,12 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
     if (serverResultJson.present) {
       map['server_result_json'] = Variable<String>(serverResultJson.value);
     }
+    if (failureKind.present) {
+      map['failure_kind'] = Variable<String>(failureKind.value);
+    }
+    if (httpStatusCode.present) {
+      map['http_status_code'] = Variable<int>(httpStatusCode.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -5271,6 +5379,8 @@ class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
           ..write('lastAttemptAt: $lastAttemptAt, ')
           ..write('lastError: $lastError, ')
           ..write('serverResultJson: $serverResultJson, ')
+          ..write('failureKind: $failureKind, ')
+          ..write('httpStatusCode: $httpStatusCode, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -7707,6 +7817,8 @@ typedef $$SyncOutboxTableCreateCompanionBuilder = SyncOutboxCompanion Function({
   Value<DateTime?> lastAttemptAt,
   Value<String?> lastError,
   Value<String?> serverResultJson,
+  Value<String?> failureKind,
+  Value<int?> httpStatusCode,
   required DateTime createdAt,
   required DateTime updatedAt,
 });
@@ -7726,6 +7838,8 @@ typedef $$SyncOutboxTableUpdateCompanionBuilder = SyncOutboxCompanion Function({
   Value<DateTime?> lastAttemptAt,
   Value<String?> lastError,
   Value<String?> serverResultJson,
+  Value<String?> failureKind,
+  Value<int?> httpStatusCode,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
 });
@@ -7811,6 +7925,16 @@ class $$SyncOutboxTableFilterComposer
 
   ColumnFilters<String> get serverResultJson => $composableBuilder(
     column: $table.serverResultJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get failureKind => $composableBuilder(
+    column: $table.failureKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get httpStatusCode => $composableBuilder(
+    column: $table.httpStatusCode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7909,6 +8033,16 @@ class $$SyncOutboxTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get failureKind => $composableBuilder(
+    column: $table.failureKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get httpStatusCode => $composableBuilder(
+    column: $table.httpStatusCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -7988,6 +8122,16 @@ class $$SyncOutboxTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get failureKind => $composableBuilder(
+    column: $table.failureKind,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get httpStatusCode => $composableBuilder(
+    column: $table.httpStatusCode,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -8041,6 +8185,8 @@ class $$SyncOutboxTableTableManager
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
                 Value<String?> serverResultJson = const Value.absent(),
+                Value<String?> failureKind = const Value.absent(),
+                Value<int?> httpStatusCode = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => SyncOutboxCompanion(
@@ -8059,6 +8205,8 @@ class $$SyncOutboxTableTableManager
                 lastAttemptAt: lastAttemptAt,
                 lastError: lastError,
                 serverResultJson: serverResultJson,
+                failureKind: failureKind,
+                httpStatusCode: httpStatusCode,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -8079,6 +8227,8 @@ class $$SyncOutboxTableTableManager
                 Value<DateTime?> lastAttemptAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
                 Value<String?> serverResultJson = const Value.absent(),
+                Value<String?> failureKind = const Value.absent(),
+                Value<int?> httpStatusCode = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
               }) => SyncOutboxCompanion.insert(
@@ -8097,6 +8247,8 @@ class $$SyncOutboxTableTableManager
                 lastAttemptAt: lastAttemptAt,
                 lastError: lastError,
                 serverResultJson: serverResultJson,
+                failureKind: failureKind,
+                httpStatusCode: httpStatusCode,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),

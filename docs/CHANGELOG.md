@@ -6,6 +6,36 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-05 — Reprise contrôlée des erreurs techniques Outbox Flutter
+
+### Classification structurée
+
+- La migration Drift vers le schéma v3 ajoute `failure_kind` et `http_status_code` à `sync_outbox`, sans effacer les événements existants.
+- Les causes persistées distinguent `network`, `http`, `local_payload_invalid`, `protocol_invalid`, `business_conflict`, `business_rejected` et `server_processing`.
+
+### Retry manuel contrôlé
+
+- Une reprise manuelle est autorisée uniquement pour un événement `failed` classé `http` avec HTTP `408`, `429` ou `500` à `599`.
+- Le retry conserve la même ligne `sync_outbox`, le même `event_uuid`, `payload_json`, `entity_id` et `occurred_at`; aucun nouvel événement n'est créé.
+- Le requeue est atomique, isolé par organisation et protégé contre les doubles déclenchements : un événement produit un seul POST et un unique refresh Bootstrap après `applied`.
+
+### Expérience utilisateur
+
+- Le détail affiche une reprise uniquement lorsqu'elle est autorisée, après confirmation explicite ; les états retrying, succès, timeout, conflit, rejet et échec serveur sont rendus lisiblement.
+- Les listes et compteurs sont relus localement depuis Drift. Le payload métier reste non exposé.
+
+### Validation
+
+- `flutter analyze` : No issues found!
+- `flutter test` : 146 tests passants, 0 échec.
+- Build Web et APK debug : OK.
+
+### Limites
+
+- Le reprocessing Laravel d'un `SyncEvent` déjà `failed`, la résolution des conflits, la correction ou reconstruction du payload, la reprise des `rejected` et `conflict`, le retry automatique, le background sync, le listener de connectivité, le backoff exponentiel, la purge Outbox et l'export de diagnostic restent hors périmètre.
+
+---
+
 ## 2026-09-05 — Diagnostic Flutter des problèmes de synchronisation Outbox
 
 ### Consultation tenant-scopée

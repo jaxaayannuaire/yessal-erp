@@ -24,6 +24,8 @@ void main() {
         expect(event.lastAttemptAt, isNull);
         expect(event.lastError, isNull);
         expect(event.serverResultJson, isNull);
+        expect(event.failureKind, isNull);
+        expect(event.httpStatusCode, isNull);
         expect(
           await repository.findByEventUuid(
             organizationId: 1,
@@ -355,6 +357,126 @@ void main() {
       );
     });
 
+    test(
+      'requeues only retryable HTTP failures without changing identity',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
+        final repository = OutboxRepository(database);
+        final event = await _enqueue(repository, eventUuid: 'retryable');
+        await repository.markSending(organizationId: 1, id: event.id);
+        await repository.markFailed(
+          organizationId: 1,
+          id: event.id,
+          error: 'HTTP 500',
+          failureKind: OutboxFailureKind.http,
+          httpStatusCode: 500,
+        );
+        final requeued = await repository.requeueRetryableTechnicalFailure(
+          organizationId: 1,
+          id: event.id,
+        );
+        expect(requeued!.status, OutboxStatus.queued);
+        expect(requeued.eventUuid, event.eventUuid);
+        expect(requeued.payloadJson, event.payloadJson);
+        expect(requeued.entityId, event.entityId);
+        expect(requeued.occurredAt, event.occurredAt);
+        expect(requeued.attemptCount, 1);
+        expect(
+          await repository.requeueRetryableTechnicalFailure(
+            organizationId: 1,
+            id: event.id,
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'clears failure metadata only when a queued event is claimed',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
+        var now = DateTime.utc(2026, 9, 5, 10);
+        final repository = OutboxRepository(database, clock: () => now);
+        final initial = await _enqueue(repository, eventUuid: 'clean-metadata');
+        await repository.markSending(organizationId: 1, id: initial.id);
+        final firstAttemptAt = (await repository.findById(
+          organizationId: 1,
+          id: initial.id,
+        ))!.lastAttemptAt;
+        expect(_unixSeconds(firstAttemptAt!), _unixSeconds(now));
+        await repository.markFailed(
+          organizationId: 1,
+          id: initial.id,
+          error: 'HTTP 500',
+          failureKind: OutboxFailureKind.http,
+          httpStatusCode: 500,
+        );
+
+        final requeued = await repository.requeueRetryableTechnicalFailure(
+          organizationId: 1,
+          id: initial.id,
+        );
+        expect(requeued!.attemptCount, 1);
+        expect(requeued.failureKind, OutboxFailureKind.http);
+        expect(requeued.httpStatusCode, 500);
+        expect(requeued.lastError, 'HTTP 500');
+        expect(requeued.lastAttemptAt, firstAttemptAt);
+
+        now = now.add(const Duration(minutes: 1));
+        final sending = await repository.markSending(
+          organizationId: 1,
+          id: initial.id,
+        );
+        expect(sending!.status, OutboxStatus.sending);
+        expect(sending.attemptCount, 2);
+        expect(_unixSeconds(sending.lastAttemptAt!), _unixSeconds(now));
+        expect(sending.lastError, isNull);
+        expect(sending.failureKind, isNull);
+        expect(sending.httpStatusCode, isNull);
+        _expectIdentity(sending, initial);
+      },
+    );
+
+    test(
+      'atomically requeues one retryable failure for concurrent callers',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
+        final repository = OutboxRepository(database);
+        final event = await _enqueue(repository, eventUuid: 'atomic-requeue');
+        await repository.markSending(organizationId: 1, id: event.id);
+        await repository.markFailed(
+          organizationId: 1,
+          id: event.id,
+          error: 'HTTP 503',
+          failureKind: OutboxFailureKind.http,
+          httpStatusCode: 503,
+        );
+
+        final results = await Future.wait([
+          repository.requeueRetryableTechnicalFailure(
+            organizationId: 1,
+            id: event.id,
+          ),
+          repository.requeueRetryableTechnicalFailure(
+            organizationId: 1,
+            id: event.id,
+          ),
+        ]);
+
+        expect(results.whereType<OutboxEvent>(), hasLength(1));
+        final reloaded = await repository.findById(
+          organizationId: 1,
+          id: event.id,
+        );
+        expect(reloaded!.status, OutboxStatus.queued);
+        expect(reloaded.attemptCount, 1);
+        _expectIdentity(reloaded, event);
+      },
+    );
+
     test('restores an enqueued event after reopening a SQLite file', () async {
       final directory = await Directory.systemTemp.createTemp('yessal-outbox-');
       final file = File(
@@ -398,3 +520,19 @@ Future<OutboxEvent> _enqueue(
   payloadJson: '{"local_uuid":"local-$eventUuid","currency":"XOF"}',
   occurredAt: DateTime.utc(2026, 2, 1),
 );
+
+void _expectIdentity(OutboxEvent actual, OutboxEvent expected) {
+  expect(actual.id, expected.id);
+  expect(actual.organizationId, expected.organizationId);
+  expect(actual.shopId, expected.shopId);
+  expect(actual.deviceId, expected.deviceId);
+  expect(actual.eventUuid, expected.eventUuid);
+  expect(actual.entityType, expected.entityType);
+  expect(actual.entityId, expected.entityId);
+  expect(actual.action, expected.action);
+  expect(actual.payloadJson, expected.payloadJson);
+  expect(actual.occurredAt, expected.occurredAt);
+}
+
+int _unixSeconds(DateTime value) =>
+    value.toUtc().millisecondsSinceEpoch ~/ Duration.millisecondsPerSecond;

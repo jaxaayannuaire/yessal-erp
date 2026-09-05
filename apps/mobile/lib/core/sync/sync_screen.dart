@@ -111,14 +111,17 @@ class _SyncScreenState extends State<SyncScreen> {
               const Text('Aucun problème de synchronisation.')
             else
               OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => SyncIssuesScreen(
-                      organizationId: widget.organizationId,
-                      outbox: widget.outbox,
-                    ),
-                  ),
-                ),
+                onPressed: () => Navigator.of(context)
+                    .push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SyncIssuesScreen(
+                          organizationId: widget.organizationId,
+                          outbox: widget.outbox,
+                          service: widget.service,
+                        ),
+                      ),
+                    )
+                    .then((_) => controller.load(widget.organizationId)),
                 icon: const Icon(Icons.error_outline),
                 label: Text('Voir les $_issueCount éléments à traiter'),
               ),

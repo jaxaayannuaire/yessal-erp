@@ -59,6 +59,8 @@ void main() {
     expect(result.attemptCount, 1);
     expect(result.serverResultJson, contains('sale_id'));
     expect(result.lastError, isNull);
+    expect(result.failureKind, isNull);
+    expect(result.httpStatusCode, isNull);
   });
 
   test(
@@ -89,6 +91,8 @@ void main() {
       expect(queued.attemptCount, 1);
       expect(queued.eventUuid, event.eventUuid);
       expect(queued.payloadJson, event.payloadJson);
+      expect(queued.failureKind, OutboxFailureKind.network);
+      expect(queued.httpStatusCode, isNull);
       final applied = await service.syncOne(
         organizationId: 1,
         outboxId: event.id,
@@ -126,14 +130,20 @@ void main() {
     final rejected = await _event(database, eventUuid: 'rejected');
     final failed = await _event(database, eventUuid: 'failed');
 
-    expect(
-      (await service.syncOne(organizationId: 1, outboxId: conflict.id)).status,
-      OutboxStatus.conflict,
+    final conflictResult = await service.syncOne(
+      organizationId: 1,
+      outboxId: conflict.id,
     );
-    expect(
-      (await service.syncOne(organizationId: 1, outboxId: rejected.id)).status,
-      OutboxStatus.rejected,
+    expect(conflictResult.status, OutboxStatus.conflict);
+    expect(conflictResult.failureKind, OutboxFailureKind.businessConflict);
+    expect(conflictResult.httpStatusCode, isNull);
+    final rejectedResult = await service.syncOne(
+      organizationId: 1,
+      outboxId: rejected.id,
     );
+    expect(rejectedResult.status, OutboxStatus.rejected);
+    expect(rejectedResult.failureKind, OutboxFailureKind.businessRejected);
+    expect(rejectedResult.httpStatusCode, isNull);
     final result = await service.syncOne(
       organizationId: 1,
       outboxId: failed.id,
@@ -141,6 +151,8 @@ void main() {
     expect(result.status, OutboxStatus.failed);
     expect(result.lastError, 'Erreur serveur');
     expect(result.serverResultJson, contains('Erreur serveur'));
+    expect(result.failureKind, OutboxFailureKind.serverProcessing);
+    expect(result.httpStatusCode, isNull);
   });
 
   test('marks HTTP responses outside the sync contract as failed', () async {
@@ -161,6 +173,8 @@ void main() {
       );
       expect(result.status, OutboxStatus.failed);
       expect(result.lastError, contains('HTTP $code'));
+      expect(result.failureKind, OutboxFailureKind.http);
+      expect(result.httpStatusCode, code);
     }
   });
 
@@ -192,9 +206,33 @@ void main() {
           result.lastError,
           'Réponse de synchronisation serveur invalide.',
         );
+        expect(result.failureKind, OutboxFailureKind.protocolInvalid);
+        expect(result.httpStatusCode, isNull);
       }
     },
   );
+
+  test('marks an incoherent accepted status as a protocol failure', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final httpClient = RecordingClient.responses([
+      _jsonResponse({
+        'accepted': [
+          {'status': 'pending'},
+        ],
+      }),
+    ]);
+    final event = await _event(database, eventUuid: 'accepted-pending');
+
+    final result = await _service(
+      database,
+      httpClient,
+    ).syncOne(organizationId: 1, outboxId: event.id);
+
+    expect(result.status, OutboxStatus.failed);
+    expect(result.failureKind, OutboxFailureKind.protocolInvalid);
+    expect(result.httpStatusCode, isNull);
+  });
 
   test(
     'does not call HTTP for non-queued, cross-tenant or wrongly scoped work',
@@ -245,6 +283,8 @@ void main() {
     );
     expect(result.attemptCount, 1);
     expect(result.payloadJson, '{invalide');
+    expect(result.failureKind, OutboxFailureKind.localPayloadInvalid);
+    expect(result.httpStatusCode, isNull);
     expect(httpClient.requests, isEmpty);
   });
 }

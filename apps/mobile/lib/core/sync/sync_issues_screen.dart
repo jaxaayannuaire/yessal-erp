@@ -3,16 +3,21 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'outbox_repository.dart';
+import 'outbox_retry_policy.dart';
+import 'issue_retry_controller.dart';
+import 'sync_outbox_service.dart';
 
 class SyncIssuesScreen extends StatefulWidget {
   const SyncIssuesScreen({
     super.key,
     required this.organizationId,
     required this.outbox,
+    this.service,
   });
 
   final int organizationId;
   final OutboxRepository outbox;
+  final SyncOutboxService? service;
 
   @override
   State<SyncIssuesScreen> createState() => _SyncIssuesScreenState();
@@ -76,15 +81,25 @@ class _SyncIssuesScreenState extends State<SyncIssuesScreen> {
                           ),
                           isThreeLine: true,
                           trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => SyncIssueDetailScreen(
-                                organizationId: widget.organizationId,
-                                eventId: event.id,
-                                outbox: widget.outbox,
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => SyncIssueDetailScreen(
+                                  organizationId: widget.organizationId,
+                                  eventId: event.id,
+                                  outbox: widget.outbox,
+                                  service: widget.service,
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                            if (mounted) {
+                              setState(() {
+                                _issues = widget.outbox.listIssues(
+                                  widget.organizationId,
+                                );
+                              });
+                            }
+                          },
                         );
                       },
                     ),
@@ -112,11 +127,13 @@ class SyncIssueDetailScreen extends StatefulWidget {
     required this.organizationId,
     required this.eventId,
     required this.outbox,
+    this.service,
   });
 
   final int organizationId;
   final int eventId;
   final OutboxRepository outbox;
+  final SyncOutboxService? service;
 
   @override
   State<SyncIssueDetailScreen> createState() => _SyncIssueDetailScreenState();
@@ -124,6 +141,8 @@ class SyncIssueDetailScreen extends StatefulWidget {
 
 class _SyncIssueDetailScreenState extends State<SyncIssueDetailScreen> {
   late Future<OutboxEvent?> _event;
+  IssueRetryController? _retryController;
+  final _retryPolicy = const OutboxRetryPolicy();
 
   @override
   void initState() {
@@ -132,6 +151,9 @@ class _SyncIssueDetailScreenState extends State<SyncIssueDetailScreen> {
       organizationId: widget.organizationId,
       id: widget.eventId,
     );
+    if (widget.service != null) {
+      _retryController = IssueRetryController(widget.service!);
+    }
   }
 
   @override
@@ -144,49 +166,134 @@ class _SyncIssueDetailScreenState extends State<SyncIssueDetailScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         final event = snapshot.data;
-        if (event == null || !SyncIssueLabels.isIssue(event.status)) {
+        if (event == null) {
           return const Center(
             child: Text('Événement de synchronisation introuvable.'),
+          );
+        }
+        if (!SyncIssueLabels.isIssue(event.status)) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                event.status == OutboxStatus.applied
+                    ? 'Synchronisation réussie.'
+                    : event.lastError ??
+                          'La synchronisation a été remise en attente.',
+                textAlign: TextAlign.center,
+              ),
+            ),
           );
         }
         final serverDetails = SyncIssueLabels.serverDetails(
           event.serverResultJson,
         );
-        return ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _field('Statut', SyncIssueLabels.status(event.status)),
-            _field(
-              'Type d’opération',
-              SyncIssueLabels.entityType(event.entityType),
-            ),
-            _field('Action', SyncIssueLabels.action(event.action)),
-            _field(
-              'Date de l’opération',
-              SyncIssueLabels.date(event.occurredAt),
-            ),
-            _field('Tentatives', '${event.attemptCount}'),
-            _field(
-              'Dernière tentative',
-              SyncIssueLabels.dateOrUnavailable(event.lastAttemptAt),
-            ),
-            _field('Message d’erreur', SyncIssueLabels.error(event.lastError)),
-            const SizedBox(height: 16),
-            const Text(
-              'Détails techniques',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            _field('Identifiant de synchronisation', event.eventUuid),
-            _field('Entity ID', event.entityId),
-            _field('Shop ID', '${event.shopId}'),
-            _field('Device ID', '${event.deviceId}'),
-            for (final detail in serverDetails.entries)
-              _field(detail.key, detail.value),
-          ],
+        final decision = _retryPolicy.evaluate(event);
+        return AnimatedBuilder(
+          animation: _retryController ?? Listenable.merge(const []),
+          builder: (context, _) => ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              _field('Statut', SyncIssueLabels.status(event.status)),
+              _field(
+                'Type d’opération',
+                SyncIssueLabels.entityType(event.entityType),
+              ),
+              _field('Action', SyncIssueLabels.action(event.action)),
+              _field(
+                'Date de l’opération',
+                SyncIssueLabels.date(event.occurredAt),
+              ),
+              _field('Tentatives', '${event.attemptCount}'),
+              _field(
+                'Dernière tentative',
+                SyncIssueLabels.dateOrUnavailable(event.lastAttemptAt),
+              ),
+              _field(
+                'Message d’erreur',
+                SyncIssueLabels.error(event.lastError),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Détails techniques',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              _field('Identifiant de synchronisation', event.eventUuid),
+              _field('Entity ID', event.entityId),
+              _field('Shop ID', '${event.shopId}'),
+              _field('Device ID', '${event.deviceId}'),
+              for (final detail in serverDetails.entries)
+                _field(detail.key, detail.value),
+              const SizedBox(height: 16),
+              const Text(
+                'Reprise',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(decision.reason),
+              if (decision.allowed && _retryController != null) ...[
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: _retryController!.state == IssueRetryState.retrying
+                      ? null
+                      : () => _confirmRetry(event),
+                  icon: _retryController!.state == IssueRetryState.retrying
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh),
+                  label: Text(
+                    _retryController!.state == IssueRetryState.retrying
+                        ? 'Nouvelle tentative en cours…'
+                        : 'Réessayer cette opération',
+                  ),
+                ),
+              ],
+              if (_retryController?.state == IssueRetryState.error)
+                Text(_retryController!.error ?? 'La reprise a échoué.'),
+            ],
+          ),
         );
       },
     ),
   );
+
+  Future<void> _confirmRetry(OutboxEvent event) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Réessayer cette opération ?'),
+        content: const Text(
+          'Le même identifiant de synchronisation et les mêmes données seront renvoyés au serveur.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Réessayer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      final result = await _retryController!.retry(
+        organizationId: widget.organizationId,
+        outboxId: event.id,
+      );
+      if (result != null && mounted) {
+        setState(() {
+          _event = widget.outbox.findById(
+            organizationId: widget.organizationId,
+            id: event.id,
+          );
+        });
+      }
+    }
+  }
 
   Widget _field(String label, String value) => Padding(
     padding: const EdgeInsets.only(bottom: 12),

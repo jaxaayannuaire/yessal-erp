@@ -88,13 +88,24 @@ Les statuts `conflict`, `rejected` et `failed` restent persistés et peuvent êt
 consultés par tenant, avec leurs messages et identifiants techniques de support.
 Le payload métier n'est pas affiché dans cette interface.
 
+`sync_outbox` conserve aussi une classification structurée d'échec
+(`failure_kind`, `http_status_code`). Une reprise manuelle n'est autorisée que
+pour un échec HTTP `408`, `429` ou `5xx`. Elle réutilise la même ligne Outbox,
+le même `event_uuid` et le même payload immuable. Les conflits, rejets,
+échecs de traitement serveur, payloads locaux invalides et réponses de protocole
+invalides ne sont pas retryables par cette interface.
+
+Une interruption réseau reste différente d'un échec terminal : elle replace
+l'événement `sending` en `queued`, puis il peut être repris par l'action manuelle
+**Synchroniser maintenant**. Le serveur demeure la source de vérité.
+
 - le bootstrap initial utilise les endpoints REST ; `sync/pull` n'est pas un
   bootstrap complet ;
 - les variantes sont chargées par `GET /products/{product}/variants` : le
   bootstrap MVP effectue donc une requête par produit ;
 - stock et variantes ne sont pas encore actualisés par le pull incrémental ;
-- aucun retry manuel ou automatique, aucune résolution de conflit, aucune
-  correction de payload et aucune purge Outbox ne sont encore disponibles ;
+- aucun retry automatique, aucune résolution de conflit, aucune correction de
+  payload et aucune purge Outbox ne sont encore disponibles ;
 - aucun background sync, timer ou polling réseau n'est mis en place ;
 - l'application liste les appareils de l'organisation puis compare le
   `device_uuid` local persistant ; un filtre backend dédié serait une

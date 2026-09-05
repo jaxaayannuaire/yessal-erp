@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../bootstrap/bootstrap_repository.dart';
 import '../errors/api_exception.dart';
 import 'outbox_repository.dart';
+import 'outbox_retry_policy.dart';
 
 typedef OutboxRefresh = Future<void> Function({
   required int organizationId,
@@ -40,6 +41,8 @@ class SyncOutboxService {
   final OutboxRepository _outbox;
   final OutboxRefresh? _refresh;
   Future<List<OutboxEvent>>? _activePendingSync;
+  Future<OutboxEvent>? _activeRetry;
+  final _retryPolicy = const OutboxRetryPolicy();
 
   /// Replays the current tenant's queued events in FIFO order, one request at
   /// a time. A retryable network failure stops this run to avoid a burst.
@@ -122,6 +125,7 @@ class SyncOutboxService {
           organizationId: organizationId,
           id: outboxId,
           error: 'Le payload de synchronisation local est invalide.',
+          failureKind: OutboxFailureKind.localPayloadInvalid,
         ),
       );
     }
@@ -164,9 +168,63 @@ class SyncOutboxService {
           organizationId: organizationId,
           id: outboxId,
           error: 'HTTP ${exception.statusCode} : ${exception.message}',
+          failureKind: OutboxFailureKind.http,
+          httpStatusCode: exception.statusCode,
         ),
       );
     }
+  }
+
+  Future<OutboxEvent> retryFailed({
+    required int organizationId,
+    required int outboxId,
+  }) {
+    final active = _activeRetry;
+    if (active != null) return active;
+    late final Future<OutboxEvent> run;
+    run = _retryFailed(organizationId: organizationId, outboxId: outboxId)
+        .whenComplete(() {
+          if (identical(_activeRetry, run)) _activeRetry = null;
+        });
+    _activeRetry = run;
+    return run;
+  }
+
+  Future<OutboxEvent> _retryFailed({
+    required int organizationId,
+    required int outboxId,
+  }) async {
+    if (_api.organizationId != organizationId) {
+      throw const SyncOutboxException(
+        'Le contexte d’organisation de synchronisation est incohérent.',
+      );
+    }
+    final event = await _outbox.findById(
+      organizationId: organizationId,
+      id: outboxId,
+    );
+    if (event == null || !_retryPolicy.evaluate(event).allowed) {
+      throw const SyncOutboxException(
+        'Cet échec ne peut pas être réessayé en sécurité.',
+      );
+    }
+    final queued = await _outbox.requeueRetryableTechnicalFailure(
+      organizationId: organizationId,
+      id: outboxId,
+    );
+    if (queued == null) {
+      throw const SyncOutboxException(
+        'Cet événement n’est plus éligible au réessai.',
+      );
+    }
+    final result = await syncOne(
+      organizationId: organizationId,
+      outboxId: queued.id,
+    );
+    if (result.status == OutboxStatus.applied && _refresh != null) {
+      await _refresh(organizationId: organizationId, shopId: result.shopId);
+    }
+    return result;
   }
 
   Future<OutboxEvent> _applyResponse({
@@ -187,6 +245,7 @@ class SyncOutboxService {
           organizationId: organizationId,
           id: outboxId,
           error: 'Réponse de synchronisation serveur invalide.',
+          failureKind: OutboxFailureKind.protocolInvalid,
           serverResultJson: jsonEncode(response),
         ),
       );
@@ -199,6 +258,7 @@ class SyncOutboxService {
           organizationId: organizationId,
           id: outboxId,
           error: 'Réponse de synchronisation serveur invalide.',
+          failureKind: OutboxFailureKind.protocolInvalid,
           serverResultJson: jsonEncode(response),
         ),
       );
@@ -214,6 +274,7 @@ class SyncOutboxService {
               organizationId: organizationId,
               id: outboxId,
               error: 'Réponse de synchronisation serveur invalide.',
+              failureKind: OutboxFailureKind.protocolInvalid,
               serverResultJson: resultJson,
             ),
           );
@@ -231,6 +292,7 @@ class SyncOutboxService {
             organizationId: organizationId,
             id: outboxId,
             error: _message(item, 'Conflit de synchronisation.'),
+
             serverResultJson: resultJson,
           ),
         );
@@ -249,6 +311,7 @@ class SyncOutboxService {
             organizationId: organizationId,
             id: outboxId,
             error: _message(item, 'Échec serveur de synchronisation.'),
+            failureKind: OutboxFailureKind.serverProcessing,
             serverResultJson: resultJson,
           ),
         );
