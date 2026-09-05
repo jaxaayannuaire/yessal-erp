@@ -31,7 +31,7 @@ Les données métier sont stockées dans Drift/SQLite :
 - `organizations_cache`, `entitlements_cache` ;
 - `categories`, `products`, `product_variants`, `customers` ;
 - `stock_levels`, `cash_sessions` ;
-- `sync_metadata` et `bootstrap_metadata`.
+- `sync_metadata`, `bootstrap_metadata` et `sync_outbox`.
 
 Les clés locales incluent au minimum `organization_id`, et `shop_id` lorsque
 la ressource est propre à une boutique. Le bootstrap réseau est écrit dans une
@@ -53,9 +53,11 @@ le serveur doit servir `sqlite3.wasm` avec `Content-Type: application/wasm`.
 Les en-têtes COOP/COEP améliorent le support OPFS mais ne sont pas imposés par
 cette fondation, afin de préserver les intégrations Web existantes.
 
-La synchronisation des ventes offline et le journal de changements complet sont
-hors périmètre de cette fondation. Une implémentation Drift pourra remplacer
-`LocalCacheStore` sans modifier les repositories.
+Les ventes cash offline utilisent `sync_outbox` pour conserver un événement
+`sale.create` immuable. Le replay est lancé explicitement par l'utilisateur,
+une opération à la fois, puis l'état local est rafraîchi après une application
+serveur confirmée. Drift remplace `LocalCacheStore` sans modifier les
+repositories.
 
 ## Limites connues
 
@@ -64,23 +66,36 @@ hors périmètre de cette fondation. Une implémentation Drift pourra remplacer
 Le parcours Vente utilise le catalogue Drift pour composer un panier en mémoire,
 puis crée une vente, enregistre un paiement cash et finalise la vente via l'API.
 Le serveur reste la source de vérité pour les prix, le paiement, la session de
-caisse et le stock. Le stock local est seulement indicatif. Aucune vente n'est
-stockée hors ligne, ni rejouée : une connexion est requise au moment de la
-soumission. Après une finalisation réussie, le bootstrap rafraîchit Drift.
+caisse et le stock. Le stock local est seulement indicatif. Une vente n'est
+considérée finalisée qu'après confirmation du serveur. Après une finalisation
+réussie, le bootstrap rafraîchit Drift.
 
 - une coupure avant paiement conserve l'identifiant de vente en mémoire pour
   reprendre la même tentative ;
-- aucune outbox ni vente offline n'est créée à ce stade ;
 - la recherche et le panier restent utilisables localement, mais la validation
   finale exige l'API.
+
+## Vente cash offline et Outbox
+
+Lorsqu'une vente cash est enregistrée hors ligne, l'application conserve dans
+Drift un snapshot `sale.create` immuable, avec son `event_uuid`, son
+`local_uuid`, son numéro de reçu et son payload historique. Le stock local
+n'est pas décrémenté artificiellement : le serveur reste autoritaire au replay.
+
+La synchronisation est uniquement manuelle depuis l'écran Synchronisation. Les
+événements `queued` sont envoyés séquentiellement, un événement par requête.
+Les statuts `conflict`, `rejected` et `failed` restent persistés et peuvent être
+consultés par tenant, avec leurs messages et identifiants techniques de support.
+Le payload métier n'est pas affiché dans cette interface.
 
 - le bootstrap initial utilise les endpoints REST ; `sync/pull` n'est pas un
   bootstrap complet ;
 - les variantes sont chargées par `GET /products/{product}/variants` : le
   bootstrap MVP effectue donc une requête par produit ;
 - stock et variantes ne sont pas encore actualisés par le pull incrémental ;
-- aucune vente offline, mutation de stock locale ou réservation locale n’est
-  encore stockée ;
+- aucun retry manuel ou automatique, aucune résolution de conflit, aucune
+  correction de payload et aucune purge Outbox ne sont encore disponibles ;
+- aucun background sync, timer ou polling réseau n'est mis en place ;
 - l'application liste les appareils de l'organisation puis compare le
   `device_uuid` local persistant ; un filtre backend dédié serait une
   optimisation ultérieure.

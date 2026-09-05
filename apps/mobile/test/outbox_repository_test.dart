@@ -294,6 +294,67 @@ void main() {
       );
     });
 
+    test('lists only tenant issues from newest to oldest', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = OutboxRepository(database);
+      final conflict = await _enqueue(repository, eventUuid: 'conflict');
+      final rejected = await _enqueue(repository, eventUuid: 'rejected');
+      final failed = await _enqueue(repository, eventUuid: 'failed');
+      final queued = await _enqueue(repository, eventUuid: 'queued');
+      final sending = await _enqueue(repository, eventUuid: 'sending');
+      final applied = await _enqueue(repository, eventUuid: 'applied');
+      final otherTenant = await _enqueue(
+        repository,
+        organizationId: 2,
+        eventUuid: 'other-tenant',
+      );
+
+      for (final event in [conflict, rejected, failed, applied]) {
+        await repository.markSending(organizationId: 1, id: event.id);
+      }
+      await repository.markSending(organizationId: 1, id: sending.id);
+      await repository.markConflict(
+        organizationId: 1,
+        id: conflict.id,
+        error: 'Conflit.',
+      );
+      await repository.markRejected(
+        organizationId: 1,
+        id: rejected.id,
+        error: 'Rejet.',
+      );
+      await repository.markFailed(
+        organizationId: 1,
+        id: failed.id,
+        error: 'Erreur.',
+      );
+      await repository.markApplied(
+        organizationId: 1,
+        id: applied.id,
+        serverResultJson: '{}',
+      );
+      await repository.markSending(organizationId: 2, id: otherTenant.id);
+      await repository.markFailed(
+        organizationId: 2,
+        id: otherTenant.id,
+        error: 'Autre tenant.',
+      );
+
+      expect((await repository.listIssues(1)).map((event) => event.id), [
+        failed.id,
+        rejected.id,
+        conflict.id,
+      ]);
+      expect((await repository.listIssues(2)).map((event) => event.id), [
+        otherTenant.id,
+      ]);
+      expect(
+        (await repository.listIssues(1)).map((event) => event.id),
+        isNot(containsAll([queued.id, sending.id, applied.id])),
+      );
+    });
+
     test('restores an enqueued event after reopening a SQLite file', () async {
       final directory = await Directory.systemTemp.createTemp('yessal-outbox-');
       final file = File(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'manual_sync_controller.dart';
 import 'outbox_repository.dart';
+import 'sync_issues_screen.dart';
 import 'sync_outbox_service.dart';
 
 class SyncIndicator extends StatelessWidget {
@@ -102,6 +103,26 @@ class _SyncScreenState extends State<SyncScreen> {
             _row('Rejetés', controller.rejected),
             _row('Erreurs', controller.failed),
             const SizedBox(height: 20),
+            const Text(
+              'Éléments à traiter',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (_issueCount == 0)
+              const Text('Aucun problème de synchronisation.')
+            else
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SyncIssuesScreen(
+                      organizationId: widget.organizationId,
+                      outbox: widget.outbox,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.error_outline),
+                label: Text('Voir les $_issueCount éléments à traiter'),
+              ),
+            const SizedBox(height: 12),
             if (controller.queued == 0)
               const Text('Aucune opération en attente'),
             FilledButton.icon(
@@ -137,6 +158,9 @@ class _SyncScreenState extends State<SyncScreen> {
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: Text('$label      $value'),
   );
+
+  int get _issueCount =>
+      controller.conflict + controller.rejected + controller.failed;
 
   String _label(ManualSyncState state) => switch (state) {
     ManualSyncState.idle => 'Prêt',

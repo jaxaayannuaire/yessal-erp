@@ -185,6 +185,25 @@ class OutboxRepository {
     return rows.map(OutboxEvent.fromRow).toList();
   }
 
+  /// Terminal events that require human review. They remain immutable here.
+  Future<List<OutboxEvent>> listIssues(int organizationId) async {
+    final rows =
+        await (_database.select(_database.syncOutbox)
+              ..where(
+                (row) =>
+                    row.organizationId.equals(organizationId) &
+                    (row.status.equals(OutboxStatus.conflict.databaseValue) |
+                        row.status.equals(OutboxStatus.rejected.databaseValue) |
+                        row.status.equals(OutboxStatus.failed.databaseValue)),
+              )
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.updatedAt),
+                (row) => OrderingTerm.desc(row.id),
+              ]))
+            .get();
+    return rows.map(OutboxEvent.fromRow).toList();
+  }
+
   /// Counts automatic-retry candidates. `sending` is deliberately excluded.
   Future<int> countPending(int organizationId) async {
     final count = _database.syncOutbox.id.count();

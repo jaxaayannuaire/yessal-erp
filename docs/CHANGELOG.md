@@ -6,6 +6,28 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-05 — Diagnostic Flutter des problèmes de synchronisation Outbox
+
+### Consultation tenant-scopée
+
+- L'écran de synchronisation Flutter permet désormais d'ouvrir les éléments à traiter issus de l'Outbox locale.
+- Une liste tenant-scopée affiche exclusivement les événements `conflict`, `rejected` et `failed`, avec les filtres Tous, Conflits, Rejetés et Erreurs.
+- Chaque événement ouvre un écran de détail en consultation seule : statut, type et action, date de l'opération, nombre de tentatives, dernière tentative et message `lastError`.
+- Les informations de support utiles sont affichées sans exposer le payload métier : Event UUID, Entity ID, Shop ID et Device ID.
+- `serverResultJson` est lu de manière défensive pour extraire des informations simples de diagnostic lorsque le JSON est valide. `payloadJson` n'est jamais affiché.
+
+### Garanties et validation
+
+- La consultation ne modifie aucun événement Outbox, ne déclenche aucune requête HTTP et ne lance aucune synchronisation en arrière-plan.
+- Aucun retry, aucune résolution de conflit et aucune suppression d'événement ne sont proposés dans cette interface.
+- Validation Flutter : `flutter analyze` sans issue, `flutter test` avec 94 tests passants, build Web et build APK debug réussis.
+
+### Limites
+
+- Le retry manuel ou automatique, la résolution des conflits, la correction du payload, la purge Outbox, le reprocessing backend et l'export de diagnostic support restent hors périmètre.
+
+---
+
 ## 2026-09-04 — Replay des ventes offline
 
 ### Synchronisation métier
