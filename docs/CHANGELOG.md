@@ -6,6 +6,13 @@ Toutes les évolutions importantes du projet sont documentées ici.
 
 ---
 
+## 2026-09-05 — Correction du seeding Caisse de démonstration
+
+- `StockLocation` accepte désormais explicitement `organization_id` et le seeder renseigne ce tenant lors de la création de `Stock principal`.
+- La recherche est isolée par organisation et boutique ; l'idempotence du seeding a été validée sur PostgreSQL (`yessal_test`).
+
+---
+
 ## 2026-09-05 — Reprise contrôlée des erreurs techniques Outbox Flutter
 
 ### Classification structurée

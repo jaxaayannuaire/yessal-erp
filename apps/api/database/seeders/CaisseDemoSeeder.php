@@ -96,8 +96,15 @@ class CaisseDemoSeeder extends Seeder
         );
 
         $location = StockLocation::query()->firstOrCreate(
-            ['shop_id' => $shop->id, 'name' => 'Stock principal'],
-            ['type' => 'store', 'status' => 'active']
+            [
+                'organization_id' => $organization->id,
+                'shop_id' => $shop->id,
+                'name' => 'Stock principal',
+            ],
+            [
+                'type' => 'store',
+                'status' => 'active',
+            ]
         );
 
         $product = Product::query()->where('shop_id', $shop->id)->where('sku', 'DEMO-001')->first();
